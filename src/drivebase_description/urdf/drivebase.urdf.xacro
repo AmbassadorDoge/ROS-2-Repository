@@ -3,6 +3,11 @@
 
   <xacro:include filename="$(find drivebase_description)/urdf/inertia.xacro"/>
 
+  <!-- Adds Gazebo system plugins and simulated sensors. Off by default so the
+       same URDF drives real hardware unchanged. -->
+  <xacro:arg name="use_sim" default="false"/>
+  <xacro:property name="use_sim" value="$(arg use_sim)"/>
+
   <!-- ==================================================================
        GEOMETRY
        Every dimension the rest of the file depends on lives here. When the
@@ -205,5 +210,10 @@
   <xacro:ultrasonic name="front_center"  y="0.000"  yaw_deg="0"/>
   <xacro:ultrasonic name="front_midright" y="-0.060" yaw_deg="-25"/>
   <xacro:ultrasonic name="front_right"   y="-0.120" yaw_deg="-50"/>
+
+  <!-- Included last: gazebo.xacro reads the geometry properties above. -->
+  <xacro:if value="${use_sim}">
+    <xacro:include filename="$(find drivebase_description)/urdf/gazebo.xacro"/>
+  </xacro:if>
 
 </robot>

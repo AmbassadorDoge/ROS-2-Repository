@@ -1,0 +1,143 @@
+<?xml version="1.0"?>
+<!--
+  Outdoor test field for the litter-collection drivebase.
+
+  Deliberately flat and sparse. The point of this world is to develop and tune
+  the EKF and Nav2 configs, not to be visually convincing. Obstacles are plain
+  boxes and cylinders because the ultrasonic band cannot tell a chair from a
+  barrier anyway - it only reports "solid thing at range".
+-->
+<sdf version="1.10">
+  <world name="test_field">
+
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <!-- World-level system plugins. The sensor systems (Sensors, Imu, NavSat)
+         MUST be declared here, not in the robot URDF - they are world systems.
+         A sensor with no matching world system stays silent with no error,
+         which is a genuinely confusing way to lose an afternoon. -->
+    <plugin filename="gz-sim-physics-system"
+            name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system"
+            name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system"
+            name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-contact-system"
+            name="gz::sim::systems::Contact"/>
+    <plugin filename="gz-sim-imu-system"
+            name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-navsat-system"
+            name="gz::sim::systems::NavSat"/>
+    <plugin filename="gz-sim-sensors-system"
+            name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <!-- Required for the NavSat sensor to produce meaningful lat/lon. Without
+         this block GPS output is unusable. Coordinates are Los Angeles, so
+         simulated fixes land in the region the robot will actually be tested. -->
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>34.0522</latitude_deg>
+      <longitude_deg>-118.2437</longitude_deg>
+      <elevation>89.0</elevation>
+    </spherical_coordinates>
+
+    <gravity>0 0 -9.8</gravity>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.3 0.3 0.3 1</specular>
+      <direction>-0.5 0.3 -0.9</direction>
+    </light>
+
+    <!-- Ground. Friction is set for dry pavement; drop mu toward 0.4-0.5 to
+         approximate wet grass when testing how the controller degrades. -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>100 100</size></plane></geometry>
+          <surface>
+            <friction><ode><mu>0.9</mu><mu2>0.9</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>100 100</size></plane></geometry>
+          <material>
+            <ambient>0.35 0.38 0.35 1</ambient>
+            <diffuse>0.45 0.48 0.45 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Obstacles. Boxes stand in for barriers, cylinders for chair legs and
+         posts. Static so a collision does not send them flying and mask the
+         fact that the robot failed to avoid them. -->
+    <model name="barrier_front">
+      <static>true</static>
+      <pose>3.0 0 0.35 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.15 1.20 0.70</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.15 1.20 0.70</size></box></geometry>
+          <material><ambient>0.7 0.35 0.1 1</ambient><diffuse>0.9 0.45 0.1 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="barrier_offset">
+      <static>true</static>
+      <pose>5.0 2.0 0.35 0 0 0.6</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.15 1.20 0.70</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.15 1.20 0.70</size></box></geometry>
+          <material><ambient>0.7 0.35 0.1 1</ambient><diffuse>0.9 0.45 0.1 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="post_a">
+      <static>true</static>
+      <pose>2.0 -1.5 0.45 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.05</radius><length>0.90</length></cylinder></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><cylinder><radius>0.05</radius><length>0.90</length></cylinder></geometry>
+          <material><ambient>0.25 0.25 0.28 1</ambient><diffuse>0.35 0.35 0.4 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Thin post, right at the edge of what a 15 deg sonar cone can resolve at
+         range. Useful as a deliberate hard case rather than an easy win. -->
+    <model name="post_thin">
+      <static>true</static>
+      <pose>4.0 -0.6 0.45 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.02</radius><length>0.90</length></cylinder></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><cylinder><radius>0.02</radius><length>0.90</length></cylinder></geometry>
+          <material><ambient>0.25 0.25 0.28 1</ambient><diffuse>0.35 0.35 0.4 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>
