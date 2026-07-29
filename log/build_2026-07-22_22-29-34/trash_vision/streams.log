@@ -1,0 +1,24 @@
+[1.229s] Invoking command in '/ros2_ws/build/trash_vision': PYTHONPATH=/ros2_ws/build/trash_vision/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/ros2_ws/install/trash_vision/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /ros2_ws/build/trash_vision/build --no-deps symlink_data
+[1.513s] running develop
+[1.643s] running egg_info
+[1.643s] creating trash_vision.egg-info
+[1.656s] writing trash_vision.egg-info/PKG-INFO
+[1.656s] writing dependency_links to trash_vision.egg-info/dependency_links.txt
+[1.656s] writing entry points to trash_vision.egg-info/entry_points.txt
+[1.657s] writing requirements to trash_vision.egg-info/requires.txt
+[1.657s] writing top-level names to trash_vision.egg-info/top_level.txt
+[1.657s] writing manifest file 'trash_vision.egg-info/SOURCES.txt'
+[1.684s] reading manifest file 'trash_vision.egg-info/SOURCES.txt'
+[1.684s] writing manifest file 'trash_vision.egg-info/SOURCES.txt'
+[1.699s] running build_ext
+[1.702s] Creating /ros2_ws/install/trash_vision/lib/python3.12/site-packages/trash-vision.egg-link (link to .)
+[1.703s] Installing detector script to /ros2_ws/install/trash_vision/lib/trash_vision
+[1.704s] 
+[1.704s] Installed /ros2_ws/build/trash_vision
+[1.704s] running symlink_data
+[1.704s] creating /ros2_ws/install/trash_vision/share/ament_index
+[1.704s] creating /ros2_ws/install/trash_vision/share/ament_index/resource_index
+[1.704s] creating /ros2_ws/install/trash_vision/share/ament_index/resource_index/packages
+[1.704s] symbolically linking /ros2_ws/build/trash_vision/resource/trash_vision -> /ros2_ws/install/trash_vision/share/ament_index/resource_index/packages
+[1.704s] symbolically linking /ros2_ws/build/trash_vision/package.xml -> /ros2_ws/install/trash_vision/share/trash_vision
+[1.773s] Invoked command in '/ros2_ws/build/trash_vision' returned '0': PYTHONPATH=/ros2_ws/build/trash_vision/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/ros2_ws/install/trash_vision/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /ros2_ws/build/trash_vision/build --no-deps symlink_data

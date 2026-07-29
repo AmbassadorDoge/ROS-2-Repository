@@ -1,0 +1,16 @@
+package.xml
+setup.cfg
+setup.py
+../../build/trash_vision/trash_vision.egg-info/PKG-INFO
+../../build/trash_vision/trash_vision.egg-info/SOURCES.txt
+../../build/trash_vision/trash_vision.egg-info/dependency_links.txt
+../../build/trash_vision/trash_vision.egg-info/entry_points.txt
+../../build/trash_vision/trash_vision.egg-info/requires.txt
+../../build/trash_vision/trash_vision.egg-info/top_level.txt
+../../build/trash_vision/trash_vision.egg-info/zip-safe
+resource/trash_vision
+test/test_copyright.py
+test/test_flake8.py
+test/test_pep257.py
+trash_vision/__init__.py
+trash_vision/detector_node.py
