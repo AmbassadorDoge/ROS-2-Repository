@@ -1,0 +1,209 @@
+<?xml version="1.0"?>
+<robot name="drivebase" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:include filename="$(find drivebase_description)/urdf/inertia.xacro"/>
+
+  <!-- ==================================================================
+       GEOMETRY
+       Every dimension the rest of the file depends on lives here. When the
+       printed chassis is measured for real, edit these and nothing else.
+       ================================================================== -->
+
+  <!-- Drive geometry. Measured values from the mechanical design. -->
+  <xacro:property name="wheel_radius"    value="0.060"/>   <!-- 120 mm dia -->
+  <xacro:property name="wheel_width"     value="0.040"/>   <!-- ESTIMATE -->
+  <xacro:property name="track"           value="0.430"/>   <!-- left<->right -->
+  <xacro:property name="wheelbase"       value="0.150"/>   <!-- front<->rear -->
+
+  <!-- Chassis body. ESTIMATES until the print is measured. -->
+  <xacro:property name="chassis_length"  value="0.350"/>
+  <xacro:property name="chassis_width"   value="0.350"/>
+  <xacro:property name="chassis_height"  value="0.350"/>
+  <xacro:property name="ground_clearance" value="0.030"/>
+
+  <!-- Masses. ESTIMATES. Only matter for simulation dynamics. -->
+  <xacro:property name="chassis_mass"    value="8.0"/>
+  <xacro:property name="wheel_mass"      value="0.4"/>
+
+  <!-- Derived. Don't edit these directly. -->
+  <xacro:property name="chassis_z"
+                  value="${ground_clearance + chassis_height/2 - wheel_radius}"/>
+  <xacro:property name="top_plane_z"
+                  value="${ground_clearance + chassis_height - wheel_radius}"/>
+  <xacro:property name="front_face_x" value="${chassis_length/2}"/>
+
+  <material name="chassis_grey">
+    <color rgba="0.30 0.32 0.35 1.0"/>
+  </material>
+  <material name="wheel_black">
+    <color rgba="0.10 0.10 0.10 1.0"/>
+  </material>
+  <material name="sensor_orange">
+    <color rgba="0.90 0.45 0.10 1.0"/>
+  </material>
+
+  <!-- ==================================================================
+       CHASSIS
+       base_footprint sits on the ground directly below base_link. Nav2 and
+       the EKF both expect this pair; the footprint frame is what gets
+       localized in the map, base_link is the physical body origin.
+       ================================================================== -->
+
+  <link name="base_footprint"/>
+
+  <joint name="base_footprint_to_base_link" type="fixed">
+    <parent link="base_footprint"/>
+    <child  link="base_link"/>
+    <!-- base_link rides at axle height so wheel joints sit at z=0 -->
+    <origin xyz="0 0 ${wheel_radius}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 ${chassis_z}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+      <material name="chassis_grey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${chassis_z}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertia mass="${chassis_mass}"
+                       x="${chassis_length}"
+                       y="${chassis_width}"
+                       z="${chassis_height}"/>
+  </link>
+
+  <!-- ==================================================================
+       WHEELS
+       Four driven wheels, skid steer. Modelled as continuous joints even
+       though nothing commands them directly on hardware — Gazebo needs
+       real joints, and robot_state_publisher needs them to build /tf.
+       ================================================================== -->
+
+  <xacro:macro name="wheel" params="name x_sign y_sign">
+    <link name="${name}_wheel_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="wheel_black"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+      </collision>
+      <xacro:cylinder_inertia mass="${wheel_mass}"
+                              radius="${wheel_radius}"
+                              length="${wheel_width}"/>
+    </link>
+
+    <joint name="${name}_wheel_joint" type="continuous">
+      <parent link="base_link"/>
+      <child  link="${name}_wheel_link"/>
+      <origin xyz="${x_sign * wheelbase/2} ${y_sign * track/2} 0" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:wheel name="front_left"  x_sign="1"  y_sign="1"/>
+  <xacro:wheel name="front_right" x_sign="1"  y_sign="-1"/>
+  <xacro:wheel name="rear_left"   x_sign="-1" y_sign="1"/>
+  <xacro:wheel name="rear_right"  x_sign="-1" y_sign="-1"/>
+
+  <!-- ==================================================================
+       SENSORS
+       Frame placement here is load-bearing: the EKF fuses IMU and GPS in
+       these frames, and the costmap projects range readings from them.
+       A wrong offset shows up as drift, not as an obvious error.
+       ================================================================== -->
+
+  <!-- IMU. Mounted as close to the center of rotation as the build allows;
+       lever-arm offset from the rotation center injects false acceleration
+       during turns, which the EKF reads as real motion. -->
+  <link name="imu_link">
+    <xacro:sensor_inertia/>
+  </link>
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="imu_link"/>
+    <origin xyz="0 0 ${chassis_z}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- GPS. Rear of the top plane, on a short mast, deliberately away from
+       the arm so the arm body doesn't shadow satellites during pickup. -->
+  <link name="gps_link">
+    <xacro:sensor_inertia/>
+  </link>
+  <joint name="gps_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="gps_link"/>
+    <origin xyz="-0.120 0 ${top_plane_z + 0.050}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Camera. Front face, above the ultrasonic band, below the arm base.
+       The optical frame follows the ROS convention (z forward, x right,
+       y down) that image pipelines and depth projection assume. -->
+  <link name="camera_link">
+    <xacro:sensor_inertia/>
+  </link>
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="camera_link"/>
+    <origin xyz="${front_face_x} 0 0.250" rpy="0 0 0"/>
+  </joint>
+
+  <link name="camera_optical_frame"/>
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera_link"/>
+    <child  link="camera_optical_frame"/>
+    <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+  <!-- Arm mount. SO101 sits vertically on the top plane near the front
+       edge. This frame is where the SO101's own URDF gets attached; it is
+       not the arm itself. -->
+  <link name="arm_mount_link">
+    <xacro:sensor_inertia/>
+  </link>
+  <joint name="arm_mount_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="arm_mount_link"/>
+    <origin xyz="${front_face_x - 0.060} 0 ${top_plane_z}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Ultrasonic band. Five sensors across the front face, fanned to cover
+       the drive corridor. Mounted low so the arm and its payload stay out
+       of the cones. -->
+  <xacro:property name="us_z" value="0.050"/>
+
+  <xacro:macro name="ultrasonic" params="name y yaw_deg">
+    <link name="ultrasonic_${name}_link">
+      <visual>
+        <geometry><box size="0.010 0.045 0.020"/></geometry>
+        <material name="sensor_orange"/>
+      </visual>
+      <xacro:sensor_inertia/>
+    </link>
+    <joint name="ultrasonic_${name}_joint" type="fixed">
+      <parent link="base_link"/>
+      <child  link="ultrasonic_${name}_link"/>
+      <origin xyz="${front_face_x} ${y} ${us_z}"
+              rpy="0 0 ${radians(yaw_deg)}"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:ultrasonic name="front_left"    y="0.120"  yaw_deg="50"/>
+  <xacro:ultrasonic name="front_midleft" y="0.060"  yaw_deg="25"/>
+  <xacro:ultrasonic name="front_center"  y="0.000"  yaw_deg="0"/>
+  <xacro:ultrasonic name="front_midright" y="-0.060" yaw_deg="-25"/>
+  <xacro:ultrasonic name="front_right"   y="-0.120" yaw_deg="-50"/>
+
+</robot>

@@ -1,0 +1,25 @@
+# colcon build artifacts
+build/
+install/
+log/
+
+# core dumps
+core
+core.*
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# ML model weights (large binaries — distribute out of band)
+*.pt
+*.onnx
+*.engine
+*_ncnn_model/
+
+# editor / os
+.vscode/
+.idea/
+.DS_Store
