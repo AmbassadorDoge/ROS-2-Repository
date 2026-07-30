@@ -856,6 +856,123 @@ git commit -m "Measure arm workspace and search pose in simulation"
 
 ---
 
+### Task 5b: Re-aim the sensor pod, and re-measure
+
+Task 5 found that the pod's optical/ranging axis is **87.2°** away from the
+gripper's approach direction. `arm_wrist_link`'s +X does not point at the
+gripper — the SO-101 puts the gripper along −Y, at
+`(0.00790, −0.15923, 0.01832)`, unit `(0.0492, −0.9922, 0.1142)`. Task 1's
+`rpy="0 0 0"` was wrong.
+
+The consequence is bigger than a bad reading. The grasp window is
+**0.287–0.481 m** from `base_link`, but the search pose's beam cannot return
+less than **1.06 m** on flat ground, and every pose that lowers the gripper
+swings the pod backward over the robot. **No arm pose sees the grasp zone**, so
+`CONFIRMING` — the design's load-bearing gate — has nothing valid to read.
+
+**Files:**
+- Modify: `src/drivebase_description/urdf/drivebase.urdf.xacro` (pod joint `rpy`)
+- Modify: `docs/arm_workspace.md` (re-measured tables)
+
+**Interfaces:**
+- Consumes: Tasks 1-5
+- Produces: corrected `pod_camera_joint` / `pod_tof_joint` orientation; a
+  re-measured search pose; a **confirm pose** that views the grasp zone.
+
+- [ ] **Step 1: Apply the measured rotation**
+
+Replace the placeholder `pod_camera_rpy` and add a matching ToF rotation:
+
+```xml
+  <!-- Aims the pod along the gripper's approach direction.
+       NOT zero, and this is worth explaining: arm_wrist_link's +X does not
+       point at the gripper. The SO-101 puts arm_gripper_frame_link at
+       (0.00790, -0.15923, 0.01832) in this frame - essentially along -Y, 87.2
+       degrees off +X. Mounted at rpy 0 0 0 the pod looks sideways past
+       everything the arm is about to grab, and at any pose low enough to
+       reach the ground it points backward over the robot and ranges the
+       chassis at 0.05-0.24 m.
+
+       Solving Rz(yaw)*Ry(pitch)*x_hat = (0.0492, -0.9922, 0.1142):
+         pitch = -asin(0.1142)  = -0.1145
+         yaw   = atan2(-0.9922, 0.0492) = -1.5213
+       Measured in docs/arm_workspace.md 3. -->
+  <xacro:property name="pod_aim_rpy" value="0 -0.1145 -1.5213"/>
+```
+
+Use `${pod_aim_rpy}` for the `rpy` of **both** `pod_camera_joint` and
+`pod_tof_joint`. They must stay boresighted — Task 5 measured them agreeing to
+4 decimal places, and the localisation maths assumes it.
+
+- [ ] **Step 2: Verify the pod now points at the gripper**
+
+```bash
+./scripts/dev.sh bash -c '
+xacro src/drivebase_description/urdf/drivebase.urdf.xacro use_sim:=true \
+  use_arm:=true wheel_mu1:=1.0 wheel_mu2:=0.6 > /tmp/u.urdf 2>/dev/null
+python3 - <<PY
+import math, numpy as np
+from urdf_parser_py.urdf import URDF
+r = URDF.from_xml_file("/tmp/u.urdf"); J={j.name:j for j in r.joints}
+def rpy(rr,pp,yy):
+    cr,sr=math.cos(rr),math.sin(rr); cp,sp=math.cos(pp),math.sin(pp)
+    cy,sy=math.cos(yy),math.sin(yy)
+    return np.array([[cy*cp,cy*sp*sr-sy*cr,cy*sp*cr+sy*sr],
+                     [sy*cp,sy*sp*sr+cy*cr,sy*sp*cr-cy*sr],
+                     [-sp,cp*sr,cp*cr]])
+def T(j):
+    m=np.eye(4); m[:3,:3]=rpy(*j.origin.rpy); m[:3,3]=j.origin.xyz; return m
+g=(T(J["arm_wrist_roll"])@T(J["arm_gripper_frame_joint"]))[:3,3]
+u=g/np.linalg.norm(g)
+for name in ("pod_tof_joint","pod_camera_joint"):
+    axis=rpy(*J[name].origin.rpy)@np.array([1.0,0,0])
+    print(name, "angle to gripper: %.2f deg" % math.degrees(
+        math.acos(float(np.clip(np.dot(axis,u),-1,1)))))
+PY'
+```
+
+Expected: **both under 1°**. Anything near 87° means the rotation did not take.
+
+- [ ] **Step 3: Re-measure — the §1 sweep is invalidated**
+
+Every pose-to-ToF mapping in `docs/arm_workspace.md` §1 and §3 was taken with
+the old orientation and is now wrong. The gripper-position table (tf only) is
+still valid — rotating a sensor does not move the arm — but every **ToF**
+column must be re-taken.
+
+Re-run the Task 5 sweep and produce **two** poses:
+
+1. **Search pose** — pod on open ground at 0.8–1.5 m, gripper tucked (keep
+   x ≤ ~0.31 m so the Nav2 footprint does not widen).
+2. **Confirm pose** — pod viewing the **0.287–0.481 m grasp window**. This is
+   the pose `CONFIRMING` holds while `shoulder_pan` centres the target. It did
+   not exist before because no pose could see the grasp zone.
+
+For each, prove the beam terminates on ground and not on the robot, using the
+same three checks Task 5 used and which are the reason its numbers are
+trustworthy:
+- measured ToF within a few % of `pod_height / −ray_z` computed from tf alone;
+- rays with `ray_z > 0` returning exactly 4.000 m (sky);
+- the saved camera frame showing ground rather than castings.
+
+Reject any candidate reading under ~0.3 m without corroboration — that is the
+robot.
+
+- [ ] **Step 4: Update `docs/arm_workspace.md`**
+
+Replace the invalidated ToF tables. Keep §5 (arm droop), §6 (STATUS.md
+agreement) and the camera↔ToF offset finding — none depend on pod orientation.
+State plainly which tables were re-measured and which carried over.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/drivebase_description/urdf/drivebase.urdf.xacro docs/arm_workspace.md
+git commit -m "Aim the sensor pod along the gripper approach axis"
+```
+
+---
+
 # Phase 2 — Pure logic
 
 Everything here is testable with `pytest` alone. No simulator, no `rclpy`.
