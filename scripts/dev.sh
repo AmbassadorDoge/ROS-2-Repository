@@ -26,8 +26,15 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BASE_IMAGE="drivebase-dev:jazzy"
 IMAGE="drivebase-dev:jazzy-pod"
 
-if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
-  if ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
+# `docker images -q`, not `docker image inspect`: inspect has been observed
+# returning "No such image" for an image that `docker images` lists by ID in
+# the same second, which made this wrapper spuriously try to rebuild.
+have_image() {
+  [ -n "$(docker images -q "$1" 2>/dev/null)" ]
+}
+
+if ! have_image "$IMAGE"; then
+  if ! have_image "$BASE_IMAGE"; then
     echo "Base image $BASE_IMAGE not found. Build it first." >&2
     exit 1
   fi
