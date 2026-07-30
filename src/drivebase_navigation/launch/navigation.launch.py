@@ -2,8 +2,10 @@
 
     ros2 launch drivebase_navigation navigation.launch.py use_sim_time:=true
 
-Expects something to already publish odom -> base_footprint (the EKF) and the
-/ultrasonic/* Range topics. Send goals from RViz's "2D Goal Pose" tool, or:
+Expects drivebase_localization to be running: it owns BOTH map -> odom and
+odom -> base_footprint. This launch file publishes no transforms at all, so
+there is exactly one publisher of each. Also expects the /ultrasonic/* Range
+topics. Send goals from RViz's "2D Goal Pose" tool, or:
 
     ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose \\
       "{pose: {header: {frame_id: map}, pose: {position: {x: 4.0, y: 1.6}}}}"
@@ -38,7 +40,6 @@ VELOCITY CHAIN (each hop made explicit rather than relying on defaults)
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -61,7 +62,6 @@ TF_REMAP = [("/tf", "tf"), ("/tf_static", "tf_static")]
 
 def generate_launch_description() -> LaunchDescription:
     use_sim_time = LaunchConfiguration("use_sim_time")
-    publish_map_tf = LaunchConfiguration("publish_map_tf")
 
     params = PathJoinSubstitution([
         FindPackageShare("drivebase_navigation"), "config", "nav2_params.yaml",
@@ -83,27 +83,6 @@ def generate_launch_description() -> LaunchDescription:
             "use_sim_time", default_value="false",
             description="Set true when running against the simulator.",
         ),
-        DeclareLaunchArgument(
-            "publish_map_tf", default_value="true",
-            description="Publish a static identity map -> odom. Turn OFF once the "
-                        "GPS-corrected global EKF owns that transform, or the two "
-                        "will fight over it.",
-        ),
-
-        # Nav2's planner and BT work in `map`, but nothing estimates a map-frame
-        # pose yet, so map and odom are made identical. Navigation is therefore
-        # purely relative, and goals are effectively given in odom coordinates.
-        # A placeholder, not a design: it inherits all of odom's dead-reckoning
-        # drift, measured at ~2% of distance travelled.
-        Node(
-            package="tf2_ros",
-            executable="static_transform_publisher",
-            name="map_to_odom_static",
-            arguments=["--frame-id", "map", "--child-frame-id", "odom"],
-            parameters=[common],
-            condition=IfCondition(publish_map_tf),
-        ),
-
         nav_node("nav2_controller", "controller_server",
                  [("cmd_vel", "cmd_vel_nav")]),
         nav_node("nav2_planner", "planner_server"),

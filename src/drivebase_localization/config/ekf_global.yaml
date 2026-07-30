@@ -1,0 +1,113 @@
+# Global EKF — publishes map -> odom, corrected by GPS.
+#
+# The second half of the standard robot_localization dual-EKF setup. The local
+# filter (ekf_local.yaml) stays smooth and continuous for the controller to
+# follow; this one accepts discrete GPS corrections and is therefore allowed to
+# jump. Nav2's controller must keep consuming the LOCAL estimate - a controller
+# integrating a jumping pose produces jerky driving.
+#
+# What each filter is for:
+#
+#   ekf_local   odom -> base_footprint   smooth, drifts without bound
+#   ekf_global  map  -> odom             jumpy, bounded by GPS
+#
+# The map -> odom transform this publishes is exactly the accumulated drift of
+# the local filter. That is the whole point: it is a correction, not a pose.
+#
+# WHAT THIS DOES AND DOES NOT BUY
+# Measured drift on the local filter alone was ~0.5 m over a 5.5 m path. The
+# simulated NEO-6M has 2.5 m of noise, so over short distances GPS is WORSE than
+# dead reckoning and this filter will mostly be adding noise. It earns its place
+# over tens of metres, where local drift grows without limit and GPS error does
+# not. Do not expect it to improve short-range accuracy - it cannot.
+
+ekf_global:
+  ros__parameters:
+    # 15 Hz, half the local filter's rate. Its only absolute input is GPS at 5 Hz,
+    # so running faster just burns CPU the Pi needs for YOLO. Measured: ekf_local
+    # already reports "Failed to meet update rate" at 30 Hz under load.
+    frequency: 15.0
+    sensor_timeout: 0.2
+    two_d_mode: true
+    publish_tf: true
+    print_diagnostics: true
+
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_footprint
+    world_frame: map          # the one line that makes this the global filter
+
+    # ---- wheel odometry: forward velocity only, same reasoning as local ----
+    odom0: /odom
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  false, false,
+                   false, false, false,
+                   false, false, false]
+    odom0_differential: false
+    odom0_relative: false
+    odom0_queue_size: 10
+
+    # ---- GPS, via navsat_transform ----
+    # Absolute x and y only. No velocity (NEO-6M velocity is derived and noisy at
+    # our speeds) and no orientation (GPS course-over-ground is meaningless below
+    # roughly 1 m/s, and useless standing still - which is exactly when the arm
+    # needs to know where it is pointing).
+    odom1: /odometry/gps
+    odom1_config: [true,  true,  false,
+                   false, false, false,
+                   false, false, false,
+                   false, false, false,
+                   false, false, false]
+    odom1_differential: false
+    odom1_relative: false
+    odom1_queue_size: 10
+    # Mahalanobis gate on GPS position. Without it a single multipath fix - common
+    # near buildings and fences, i.e. exactly where litter collects - yanks the
+    # estimate metres sideways and the filter takes a long time to recover.
+    odom1_pose_rejection_threshold: 8.0
+
+    # ---- IMU: yaw and yaw rate, same as local ----
+    imu0: /imu/data
+    imu0_config: [false, false, false,
+                  false, false, true,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
+    imu0_differential: false
+    imu0_relative: false
+    imu0_queue_size: 10
+    imu0_remove_gravitational_acceleration: true
+
+    # ---- covariances ----
+    process_noise_covariance: [        0.3,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.3,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,    0.000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,    0.000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,    0.000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,        0.03,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,         0.0,       0.025,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,       0.025,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,    0.000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,    0.000001,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,    0.000001,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,        0.01,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,        0.01,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,        0.01,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,        0.01]
+
+    initial_estimate_covariance: [        1.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         1.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0, 0.000000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0, 0.000000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0, 0.000000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0,        0.05,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0,         0.0, 0.000000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0, 0.000000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0, 0.000000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0, 0.000000001,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0, 0.000000001,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0, 0.000000001,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0, 0.000000001,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0, 0.000000001,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0, 0.000000001]

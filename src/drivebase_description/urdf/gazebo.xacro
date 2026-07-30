@@ -159,9 +159,22 @@
 
   <!-- ==================================================================
        GPS
-       2.5 m horizontal stddev matches NEO-6M datasheet CEP. Deliberately not
-       optimistic: the EKF has to be tuned against this much noise, and a sim
+       Models NEO-6M accuracy: ~2.5 m horizontal CEP, ~5 m vertical. Deliberately
+       not optimistic - the EKF has to be tuned against this much noise, and a sim
        with a perfect GPS teaches you nothing about the real failure mode.
+
+       UNIT TRAP, measured the hard way. gz applies these two noise values in
+       DIFFERENT units:
+         horizontal -> DEGREES of latitude/longitude
+         vertical   -> METRES
+       Setting horizontal to 2.5 (intending metres) scattered fixes across ~7
+       degrees of latitude, about 800 km, and navsat_transform responded by
+       re-deriving its datum on nearly every fix.
+
+       So horizontal is converted here: 1 deg latitude ~ 111320 m, therefore
+       2.5 m ~ 2.25e-5 deg. That approximation is fine for latitude and slightly
+       pessimistic for longitude (a degree of longitude is shorter away from the
+       equator), which errs in the safe direction.
        ================================================================== -->
   <gazebo reference="gps_link">
     <sensor name="navsat_sensor" type="navsat">
@@ -172,9 +185,11 @@
       <navsat>
         <position_sensing>
           <horizontal>
-            <noise type="gaussian"><mean>0.0</mean><stddev>2.5</stddev></noise>
+            <!-- degrees: 2.5 m / 111320 m-per-deg -->
+            <noise type="gaussian"><mean>0.0</mean><stddev>0.0000225</stddev></noise>
           </horizontal>
           <vertical>
+            <!-- metres -->
             <noise type="gaussian"><mean>0.0</mean><stddev>5.0</stddev></noise>
           </vertical>
         </position_sensing>

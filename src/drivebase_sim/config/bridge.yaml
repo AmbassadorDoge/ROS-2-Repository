@@ -53,7 +53,9 @@
   gz_type_name: "gz.msgs.IMU"
   direction: GZ_TO_ROS
 
-- ros_topic_name: "/gps/fix"
+# _raw: gps_covariance_shim republishes this onto /gps/fix with covariance
+# filled in, because gz.msgs.NavSat carries none and robot_localization needs it.
+- ros_topic_name: "/gps/fix_raw"
   gz_topic_name: "/gps/fix"
   ros_type_name: "sensor_msgs/msg/NavSatFix"
   gz_type_name: "gz.msgs.NavSat"

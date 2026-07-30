@@ -2,6 +2,7 @@
 
     ros2 launch drivebase_sim sim.launch.py
     ros2 launch drivebase_sim sim.launch.py rviz:=true
+    ros2 launch drivebase_sim sim.launch.py gps:=true
     ros2 launch drivebase_sim sim.launch.py headless:=true ekf:=false
 
 Publishes the same interface the real robot will expose - /odom, /joint_states,
@@ -13,7 +14,8 @@ transform is deliberately left unbridged so there is exactly one publisher of it
 (see gazebo.xacro). Run with ekf:=false to see raw wheel odometry alone - the
 robot then sits still in RViz, since nothing is estimating where it is.
 
-Nothing publishes map -> odom yet; that is the global GPS-corrected filter.
+drivebase_localization owns map -> odom too: a static identity by default, or the
+GPS-corrected global EKF with gps:=true. Nothing here publishes transforms.
 """
 
 from launch import LaunchDescription
@@ -52,6 +54,7 @@ def generate_launch_description() -> LaunchDescription:
     headless = LaunchConfiguration("headless")
     with_rviz = LaunchConfiguration("rviz")
     with_ekf = LaunchConfiguration("ekf")
+    use_gps = LaunchConfiguration("gps")
 
     robot_description = ParameterValue(
         Command(["xacro ", xacro_file, " use_sim:=true"]),
@@ -93,6 +96,11 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument(
             "rviz", default_value="false",
             description="Also open RViz with the sim view.",
+        ),
+        DeclareLaunchArgument(
+            "gps", default_value="false",
+            description="Add navsat_transform + the global EKF so GPS bounds "
+                        "drift. Makes short-range accuracy worse, not better.",
         ),
 
         # -r starts unpaused. -s is server-only; without it gz_args opens the GUI.
@@ -149,12 +157,24 @@ def generate_launch_description() -> LaunchDescription:
             output="screen",
         ),
 
+        # Fills covariance the gz NavSat message cannot carry. Always on, not
+        # gated behind gps:=true, so /gps/fix means the same thing either way.
+        Node(
+            package="drivebase_sim",
+            executable="gps_covariance",
+            parameters=[{"use_sim_time": True}],
+            output="screen",
+        ),
+
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([PathJoinSubstitution([
                 FindPackageShare("drivebase_localization"),
                 "launch", "localization.launch.py",
             ])]),
-            launch_arguments={"use_sim_time": "true"}.items(),
+            launch_arguments={
+                "use_sim_time": "true",
+                "use_gps": use_gps,
+            }.items(),
             condition=IfCondition(with_ekf),
         ),
 

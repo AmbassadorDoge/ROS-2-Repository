@@ -1,0 +1,87 @@
+# navsat_transform_node — turns NavSatFix into an odometry message in the map frame.
+#
+# It needs three inputs: a GPS fix, an absolute heading, and the current global
+# estimate. Note the deliberate loop:
+#
+#   ekf_global  --/odometry/global-->  navsat_transform
+#        ^                                    |
+#        |                                    v
+#        +----------/odometry/gps-------------+
+#
+# That is the documented robot_localization pattern, not a wiring mistake. The
+# node needs a pose estimate to convert lat/lon into map coordinates, and the
+# filter needs the converted position to correct itself.
+#
+# ============================================================================
+# THE TWO PARAMETERS THAT ACTUALLY BREAK THIS
+#
+# Both are heading offsets, and both fail the same way: the robot's estimated
+# position drifts off at a consistent ANGLE to its real path. If you see the
+# global estimate rotating away from ground truth as the robot drives, suspect
+# these before touching any covariance.
+#
+# 1. yaw_offset — robot_localization works in ENU, so it expects yaw = 0 to mean
+#    facing EAST.
+#
+#      * In SIMULATION this is 0.0. The Gazebo world declares
+#        <world_frame_orientation>ENU</world_frame_orientation>, so the simulated
+#        IMU already reports 0 = East.
+#      * ON HARDWARE a BNO055 or ICM-20948 reports 0 = magnetic NORTH, which
+#        needs yaw_offset = 1.5708 (pi/2).
+#
+#    So this value MUST change when moving from sim to the real robot. Getting it
+#    wrong puts the estimate 90 degrees out - the most common dual-EKF failure.
+#
+# 2. magnetic_declination_radians — corrects a MAGNETOMETER reading (magnetic
+#    north) to true north, which is what GPS is referenced to.
+#
+#      * In SIMULATION this must be 0.0. The simulated IMU has no magnetometer;
+#        it reports true ENU heading directly. Applying a declination correction
+#        to a heading that needs no correcting simply INJECTS that much error.
+#      * ON HARDWARE use the real value for the test site. Los Angeles is roughly
+#        +11.6 deg East as of 2026 -> 0.2025 rad. Look it up at
+#        https://www.ngdc.noaa.gov/geomag/calculators/magcalc.shtml
+#
+#    Measured what getting this wrong costs: with 0.2025 set in simulation, the
+#    global estimate walked off at an angle and reached 9 m of error over a 31 m
+#    path, while the uncorrected local filter held a constant offset. An 11 degree
+#    heading error is ~0.2 m of lateral offset for every metre driven, so this
+#    parameter can make GPS correction actively worse than no correction at all.
+# ============================================================================
+
+navsat_transform:
+  ros__parameters:
+    frequency: 30.0
+    delay: 0.0
+
+    # Both are correct for SIMULATION ONLY. See the long note above before
+    # running on hardware: yaw_offset becomes 1.5708 for a north-referenced IMU,
+    # and declination becomes the real value for the test site.
+    yaw_offset: 0.0
+    magnetic_declination_radians: 0.0
+
+    # GPS altitude carries ~5 m of noise and this robot drives on the ground, so
+    # feeding height in would only inject error into a dimension two_d_mode has
+    # already locked.
+    zero_altitude: true
+
+    # Nothing needs a UTM frame in tf, and publishing one adds a second root to
+    # the tree that confuses RViz.
+    broadcast_utm_transform: false
+
+    # Publishes /gps/filtered, the filter's estimate expressed back as lat/lon.
+    # Purely for debugging, but the cheapest way to see whether the transform is
+    # sane: drop it on a map and check the robot is in the right car park.
+    publish_filtered_gps: true
+
+    # false = take heading from the IMU, which is what makes yaw_offset and
+    # magnetic_declination_radians apply. Setting this true would take heading
+    # from the odometry input instead and silently ignore both, which looks like
+    # it works right up until the robot has turned.
+    use_odometry_yaw: false
+
+    # false = the datum is the first GPS fix received, so map origin lands wherever
+    # the robot booted. Fine for development; set true and supply an explicit
+    # `datum: [lat, lon, yaw]` once you want runs to share a common origin and be
+    # comparable across sessions. That matters for collecting competition data.
+    wait_for_datum: false
