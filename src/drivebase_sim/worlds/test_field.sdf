@@ -139,5 +139,68 @@
       </link>
     </model>
 
+    <!-- Litter. Non-static: a successful grasp must be able to lift them, and
+         a static model would let the gripper close on an immovable object and
+         report success. Placed in x [1.5, 4.0], y [-1.5, 1.5], clear of the
+         barriers at x=3,y=0 and x=5,y=2.
+
+         Saturated colours because sim_litter_detector segments by hue - it
+         stands in for YOLO, which cannot run in sim (hardware model path, TCP
+         stream). Real litter is not this colour and that is fine: the shim
+         exists to exercise the loop, not to prove the detector. -->
+    <model name="litter_can_a">
+      <pose>1.8 0.5 0.035 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>0.015</mass>
+          <inertia><ixx>7e-6</ixx><iyy>7e-6</iyy><izz>4e-6</izz>
+                   <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry><cylinder><radius>0.033</radius><length>0.07</length></cylinder></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><cylinder><radius>0.033</radius><length>0.07</length></cylinder></geometry>
+          <material><ambient>0.8 0.05 0.05 1</ambient><diffuse>1.0 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="litter_can_b">
+      <pose>3.6 -1.1 0.035 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>0.015</mass>
+          <inertia><ixx>7e-6</ixx><iyy>7e-6</iyy><izz>4e-6</izz>
+                   <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry><cylinder><radius>0.033</radius><length>0.07</length></cylinder></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><cylinder><radius>0.033</radius><length>0.07</length></cylinder></geometry>
+          <material><ambient>0.8 0.05 0.05 1</ambient><diffuse>1.0 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="litter_wrapper">
+      <pose>2.4 1.3 0.012 0 0 0.4</pose>
+      <link name="link">
+        <inertial>
+          <mass>0.005</mass>
+          <inertia><ixx>2e-6</ixx><iyy>2e-6</iyy><izz>2e-6</izz>
+                   <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry><box><size>0.08 0.05 0.024</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.08 0.05 0.024</size></box></geometry>
+          <material><ambient>0.8 0.05 0.05 1</ambient><diffuse>1.0 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
   </world>
 </sdf>
