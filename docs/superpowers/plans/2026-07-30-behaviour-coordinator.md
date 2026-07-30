@@ -38,8 +38,20 @@ reasoning.
   transitions are valid. Any figure phrased in Hz, or "how long did it take",
   is **not**, and must be re-checked on a real GPU. `docs/STATUS.md` already
   records a Nav2 stall that may be nothing more than a starved controller.
-- **Long sim launches:** allow ~45 s for Gazebo to come up under software
-  rendering, not the ~25 s the steps below suggest for a GPU machine.
+- **Long sim launches:** allow ~20-25 s for Gazebo to come up. (Measured in
+  Task 2: pod topics were listable in under 10 s even under llvmpipe.)
+- **Never verify a topic with `ros2 topic echo --once`.** Measured in Task 3:
+  each CLI invocation is a fresh node, and it intermittently fails to discover
+  a low-rate publisher before giving up — reporting
+  `does not appear to be published yet` for topics that are demonstrably
+  publishing. It reported a *working* bridge as broken. To check that data
+  flows, use one long-lived `rclpy` node that subscribes to everything and
+  spins for ~25 s. Every "verify the topic publishes" step below means that,
+  not `echo --once`.
+- **One container per `scripts/dev.sh` call.** Background processes do not
+  survive between calls, so anything that launches the simulator and then
+  queries it must be a single
+  `./scripts/dev.sh bash -c '... & sleep 25; ...; kill %1'` invocation.
 - **ROS 2 Jazzy / Gazebo Harmonic.** No package that is not in the Jazzy
   binary index.
 - **No new heavy runtime dependencies.** The Pi 5 shares cores with YOLO. No

@@ -127,7 +127,13 @@
 
     <!-- Targets come from the stow_* properties in drivebase.urdf.xacro. Command
          any joint at runtime with
-         `ros2 topic pub /arm/<joint>/position std_msgs/msg/Double ...`. -->
+         `ros2 topic pub /arm/<joint>/position std_msgs/msg/Float64 ...`.
+
+         Float64, NOT Double. These are gz transport topics carrying
+         gz.msgs.Double, and drivebase_sim's bridge.yaml maps them to
+         std_msgs/Float64 - there is no std_msgs/msg/Double, so the obvious
+         guess names a type that does not exist and the command silently does
+         nothing. -->
     <xacro:arm_joint_hold joint="shoulder_pan"  target="${stow_shoulder_pan}"/>
     <xacro:arm_joint_hold joint="shoulder_lift" target="${stow_shoulder_lift}"/>
     <xacro:arm_joint_hold joint="elbow_flex"    target="${stow_elbow_flex}"/>
