@@ -1,0 +1,121 @@
+# Local EKF — publishes odom -> base_footprint.
+#
+# This is the *local* filter only: continuous, smooth, drift-prone, and the thing
+# Nav2's controller consumes. It fuses wheel odometry and the IMU. GPS is
+# deliberately absent, because a discrete GPS correction would make this estimate
+# jump, and a controller integrating a jumping pose produces jerky driving.
+#
+# The global filter (map -> odom, GPS-corrected via navsat_transform) is a
+# separate instance and a later phase.
+#
+# THE CENTRAL DECISION HERE: yaw comes from the IMU, never from the wheels.
+# Skid steering can only rotate by scrubbing all four tyres sideways, so
+# wheel-derived yaw is not merely noisy, it is *biased*, and the bias changes with
+# surface (pavement vs grass vs gravel). The wheels contribute forward velocity;
+# the IMU contributes rotation.
+#
+# Measured, commanding 0.4 rad/s for 3 s (68.8 deg of ideal rotation):
+#
+#   Gazebo ground truth   44.97 deg
+#   EKF, IMU-based        45.0  deg     <- correct
+#   wheel-model /odom     69.0  deg     <- over-reports by 1.53x
+#
+# Two things fall out of that. Fusing wheel yaw would have put heading 53% wrong
+# after a single turn. And only ~65% of commanded rotation is actually achieved,
+# because the rest is lost to scrub - so a controller tuned without this will
+# consistently under-turn. A second run that had translated first showed 1.94x,
+# so the factor is state-dependent, not a constant to hard-code.
+#
+# CALIBRATION ITEM: measure this ratio on the real robot. It is the effective-track
+# correction, and in sim it depends on the wheel friction values in gazebo.xacro,
+# which are guesses until matched against hardware.
+
+ekf_local:
+  ros__parameters:
+    frequency: 30.0
+    sensor_timeout: 0.2
+    two_d_mode: true          # ground robot; locks z, roll, pitch
+    publish_tf: true
+    print_diagnostics: true
+
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_footprint
+    world_frame: odom         # local mode: odom is the world frame
+
+    # ---- wheel odometry -------------------------------------------------
+    odom0: /odom
+    # x     y     z
+    # roll  pitch yaw
+    # vx    vy    vz
+    # vroll vpitch vyaw
+    # ax    ay    az
+    #
+    # Velocity only, and only forward velocity at that. Absolute pose is not
+    # fused because integrating it would reintroduce the scrub-biased yaw
+    # through the back door. vy stays false: a skid-steer base has no
+    # commanded lateral velocity, and the wheels cannot observe the slip that
+    # does occur.
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  false, false,
+                   false, false, false,
+                   false, false, false]
+    odom0_differential: false
+    odom0_relative: false
+    odom0_queue_size: 10
+
+    # ---- IMU ------------------------------------------------------------
+    imu0: /imu/data
+    # Absolute yaw plus yaw rate. Absolute yaw is only trustworthy because the
+    # simulated IMU (and a BNO055 / ICM-20948 on hardware) reports a
+    # magnetometer-corrected heading. A bare 6-DOF MPU6050 cannot, and with one
+    # of those this must become [false, false, false] for orientation with yaw
+    # rate carrying the load - which drifts without bound. That is the whole
+    # argument for buying the 9-DOF part.
+    imu0_config: [false, false, false,
+                  false, false, true,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
+    imu0_differential: false
+    imu0_relative: false
+    imu0_queue_size: 10
+    imu0_remove_gravitational_acceleration: true
+
+    # ---- covariances ----------------------------------------------------
+    # Diagonal only. Values are starting points chosen to express relative
+    # confidence, not measured characteristics: yaw is trusted (IMU), x velocity
+    # is trusted (encoders), everything locked by two_d_mode is given a tiny
+    # value so the filter does not wander in unobserved dimensions.
+    process_noise_covariance: [       0.05,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,        0.05,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,    0.000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,    0.000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,    0.000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,        0.02,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,         0.0,       0.025,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,       0.025,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,    0.000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,    0.000001,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,    0.000001,         0.0,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,        0.01,         0.0,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,        0.01,         0.0,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,        0.01,         0.0,
+                                       0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,        0.01]
+
+    initial_estimate_covariance: [0.000000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0, 0.000000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0, 0.000000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0, 0.000000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0, 0.000000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0, 0.000000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0,         0.0, 0.000000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0, 0.000000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0, 0.000000001,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0, 0.000000001,         0.0,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0, 0.000000001,         0.0,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0, 0.000000001,         0.0,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0, 0.000000001,         0.0,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0, 0.000000001,         0.0,
+                                          0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0,         0.0, 0.000000001]

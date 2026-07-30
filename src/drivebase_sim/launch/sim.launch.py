@@ -1,15 +1,19 @@
 """Bring up the drivebase in Gazebo Harmonic.
 
     ros2 launch drivebase_sim sim.launch.py
-    ros2 launch drivebase_sim sim.launch.py headless:=true
+    ros2 launch drivebase_sim sim.launch.py rviz:=true
+    ros2 launch drivebase_sim sim.launch.py headless:=true ekf:=false
 
 Publishes the same interface the real robot will expose - /odom, /joint_states,
 /imu/data, /gps/fix, /ultrasonic/* as sensor_msgs/Range - so EKF and Nav2 config
 developed here transfers to hardware unchanged.
 
-Deliberately does NOT publish odom -> base_footprint. That transform belongs to
-robot_localization; until the EKF lands, the tf tree is rooted at base_footprint
-and the robot will not appear to move in RViz. That is expected, not a bug.
+The local EKF runs by default and owns odom -> base_footprint. Gazebo's DiffDrive
+transform is deliberately left unbridged so there is exactly one publisher of it
+(see gazebo.xacro). Run with ekf:=false to see raw wheel odometry alone - the
+robot then sits still in RViz, since nothing is estimating where it is.
+
+Nothing publishes map -> odom yet; that is the global GPS-corrected filter.
 """
 
 from launch import LaunchDescription
@@ -40,11 +44,14 @@ def generate_launch_description() -> LaunchDescription:
 
     world_file = PathJoinSubstitution([sim_pkg, "worlds", "test_field.sdf"])
     bridge_config = PathJoinSubstitution([sim_pkg, "config", "bridge.yaml"])
+    rviz_config = PathJoinSubstitution([sim_pkg, "rviz", "sim.rviz"])
     xacro_file = PathJoinSubstitution(
         [description_pkg, "urdf", "drivebase.urdf.xacro"]
     )
 
     headless = LaunchConfiguration("headless")
+    with_rviz = LaunchConfiguration("rviz")
+    with_ekf = LaunchConfiguration("ekf")
 
     robot_description = ParameterValue(
         Command(["xacro ", xacro_file, " use_sim:=true"]),
@@ -77,6 +84,15 @@ def generate_launch_description() -> LaunchDescription:
             default_value="false",
             description="Run without the Gazebo GUI. Sensors still render, so "
                         "this needs a working GPU either way.",
+        ),
+        DeclareLaunchArgument(
+            "ekf", default_value="true",
+            description="Run the local EKF. Without it nothing publishes "
+                        "odom -> base_footprint and RViz shows a stationary robot.",
+        ),
+        DeclareLaunchArgument(
+            "rviz", default_value="false",
+            description="Also open RViz with the sim view.",
         ),
 
         # -r starts unpaused. -s is server-only; without it gz_args opens the GUI.
@@ -131,5 +147,22 @@ def generate_launch_description() -> LaunchDescription:
             executable="laserscan_to_range",
             parameters=[{"use_sim_time": True}],
             output="screen",
+        ),
+
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource([PathJoinSubstitution([
+                FindPackageShare("drivebase_localization"),
+                "launch", "localization.launch.py",
+            ])]),
+            launch_arguments={"use_sim_time": "true"}.items(),
+            condition=IfCondition(with_ekf),
+        ),
+
+        Node(
+            package="rviz2",
+            executable="rviz2",
+            arguments=["-d", rviz_config],
+            parameters=[{"use_sim_time": True}],
+            condition=IfCondition(with_rviz),
         ),
     ])

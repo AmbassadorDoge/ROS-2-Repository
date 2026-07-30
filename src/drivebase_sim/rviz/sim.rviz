@@ -1,0 +1,130 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /RobotModel1
+        - /Ultrasonics1
+      Splitter Ratio: 0.5
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 1
+      Plane Cell Count: 30
+      Color: 130; 130; 135
+
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Enabled: true
+      Description Topic:
+        Value: /robot_description
+      Alpha: 1
+
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: false
+      Marker Scale: 0.3
+      Show Names: true
+
+    # EKF output. If the robot sits still here while Gazebo shows it driving,
+    # the EKF is not running.
+    - Class: rviz_default_plugins/Odometry
+      Name: EKF pose
+      Enabled: true
+      Topic:
+        Value: /odometry/filtered
+      Keep: 200
+      Shape:
+        Value: Arrow
+        Color: 40; 180; 110
+        Alpha: 0.9
+        Shaft Length: 0.15
+        Shaft Diameter: 0.03
+        Head Length: 0.07
+        Head Diameter: 0.07
+      Covariance:
+        Value: false
+
+    # Raw wheel odometry, for contrast. Watch it diverge from the green EKF
+    # trail during turns - that gap is the skid-steer scrub bias.
+    - Class: rviz_default_plugins/Odometry
+      Name: wheel odom (biased)
+      Enabled: true
+      Topic:
+        Value: /odom
+      Keep: 200
+      Shape:
+        Value: Arrow
+        Color: 200; 90; 50
+        Alpha: 0.5
+        Shaft Length: 0.12
+        Shaft Diameter: 0.02
+        Head Length: 0.06
+        Head Diameter: 0.05
+      Covariance:
+        Value: false
+
+    - Class: rviz_common/Group
+      Name: Ultrasonics
+      Enabled: true
+      Displays:
+        - Class: rviz_default_plugins/Range
+          Name: front_left
+          Enabled: true
+          Topic: {Value: /ultrasonic/front_left}
+          Color: 235; 140; 40
+          Alpha: 0.35
+        - Class: rviz_default_plugins/Range
+          Name: front_midleft
+          Enabled: true
+          Topic: {Value: /ultrasonic/front_midleft}
+          Color: 235; 140; 40
+          Alpha: 0.35
+        - Class: rviz_default_plugins/Range
+          Name: front_center
+          Enabled: true
+          Topic: {Value: /ultrasonic/front_center}
+          Color: 245; 190; 60
+          Alpha: 0.35
+        - Class: rviz_default_plugins/Range
+          Name: front_midright
+          Enabled: true
+          Topic: {Value: /ultrasonic/front_midright}
+          Color: 235; 140; 40
+          Alpha: 0.35
+        - Class: rviz_default_plugins/Range
+          Name: front_right
+          Enabled: true
+          Topic: {Value: /ultrasonic/front_right}
+          Color: 235; 140; 40
+          Alpha: 0.35
+
+  Global Options:
+    # odom, not base_footprint: with base_footprint the world scrolls past a
+    # stationary robot, which hides whether localization works at all.
+    Fixed Frame: odom
+    Background Color: 44; 46; 48
+    Frame Rate: 30
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/SetGoal
+      Topic: {Value: /goal_pose}
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Distance: 4.5
+      Focal Point: {X: 0, Y: 0, Z: 0.2}
+      Pitch: 0.55
+      Yaw: 2.5
+Window Geometry:
+  Height: 900
+  Width: 1400
+  Displays:
+    collapsed: false

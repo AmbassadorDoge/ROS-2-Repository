@@ -46,9 +46,15 @@ For keyboard teleop: `ros2 run teleop_twist_keyboard teleop_twist_keyboard
 driving forever. Send an explicit zero to stop it. (The real Pico firmware must
 implement a command timeout instead — see `docs/power_budget.md` §4.)
 
-**There is no `odom` → `base_footprint` transform yet.** That transform belongs
-to `robot_localization`, which is not configured yet, so the robot will not
-appear to move in RViz. Expected, not a bug — `/odom` messages are flowing.
+**`odom` → `base_footprint` comes from the EKF**, which this launch file starts by
+default. Gazebo's own DiffDrive transform is left unbridged so there is exactly
+one publisher. Run with `ekf:=false` and the robot sits still in RViz while Gazebo
+shows it driving — that is the EKF's absence, not a bug.
+
+Add `rviz:=true` to open RViz with both the EKF pose (green) and raw wheel
+odometry (orange) trailing behind. The gap that opens between them during turns
+is the skid-steer scrub bias, measured at **1.53×** — see
+`drivebase_localization/config/ekf_local.yaml`.
 
 **`/joint_states` publishes at ~1 kHz.** Gazebo's `JointStatePublisher` has no
 rate limit and ignores `<update_rate>`. Harmless: it only drives wheel-spin

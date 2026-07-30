@@ -29,13 +29,17 @@
        robot's footprint circle, so Nav2 would plan paths that clip the arm
        through obstacles. Stowing it inside the footprint is what lets the
        footprint stay the chassis. -->
-       Found by sweeping poses in the running simulator and reading
-       base_link -> arm_gripper_frame_link from tf, not by hand-solved kinematics.
-       Measured result: gripper at x=+0.110, z=+0.592 - 105 mm inside the chassis
-       face and standing clear above the roof, versus x=+0.554 at the all-zero
-       pose. Joint use stays off the hard limits (lift 83%, elbow 92%, wrist 66%). -->
+       Measured in the running simulator via base_link -> arm_gripper_frame_link,
+       not hand-solved: gripper at x=+0.309, z=+0.170 (230 mm above ground). Folded
+       rather than extended, gripper carried clear of the ground, and every joint
+       off its hard limit (lift 69%, elbow 92%, wrist 66%).
+
+       Only ~34 mm past the wheel line, so the Nav2 footprint stays the wheel
+       envelope. Not tucked fully inside the chassis - folding backward from a
+       front-face mount drives the gripper into the body, so up-and-forward is the
+       available direction. -->
   <xacro:property name="stow_shoulder_pan"  value="0.0"/>
-  <xacro:property name="stow_shoulder_lift" value="1.45"/>
+  <xacro:property name="stow_shoulder_lift" value="-1.20"/>
   <xacro:property name="stow_elbow_flex"    value="1.55"/>
   <xacro:property name="stow_wrist_flex"    value="1.10"/>
   <xacro:property name="stow_wrist_roll"    value="0.0"/>
@@ -210,16 +214,29 @@
     <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
   </joint>
 
-  <!-- Arm mount. SO101 sits vertically on the top plane near the front
-       edge. This frame is where the SO101's own URDF gets attached; it is
-       not the arm itself. -->
+  <!-- Arm mount. Bolted to the front face with the base plate horizontal, so the
+       arm stands up from it and reaches forward and down.
+
+       HEIGHT IS LOAD-BEARING, not cosmetic. Measured in simulation: the SO-101
+       reaches 219 mm below its own mount (gripper 241 mm above ground when
+       mounted at 460 mm, elbow and wrist extended). Litter on the ground needs
+       the gripper near 30-40 mm, so the mount has to sit around 250-260 mm.
+       260 mm also clears the ultrasonic band at 200 mm by 17 mm once the base
+       link's own 87 mm height is accounted for.
+
+       On the top plane (460 mm) the arm could not reach the ground at all. -->
+  <xacro:property name="arm_mount_z" value="0.200"/>  <!-- 260 mm above ground -->
+
   <link name="arm_mount_link">
     <xacro:sensor_inertia/>
   </link>
   <joint name="arm_mount_joint" type="fixed">
     <parent link="base_link"/>
     <child  link="arm_mount_link"/>
-    <origin xyz="${front_face_x - 0.060} 0 ${top_plane_z}" rpy="0 0 0"/>
+    <!-- On the face, not bracketed ahead of it: the base plate then protrudes
+         ~55 mm, less than the wheels' 60 mm, so the Nav2 footprint stays the
+         wheel envelope instead of growing to include the arm. -->
+    <origin xyz="${front_face_x} 0 ${arm_mount_z}" rpy="0 0 0"/>
   </joint>
 
   <!-- Ultrasonic band. Five sensors across the front face, fanned to cover
