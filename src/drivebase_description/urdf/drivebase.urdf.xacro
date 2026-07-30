@@ -290,6 +290,50 @@
     <xacro:so101 prefix="arm_" parent="arm_mount_link">
       <origin xyz="0 0 0" rpy="0 0 0"/>
     </xacro:so101>
+
+    <!-- Sensor pod: camera + ToF, eye-in-hand.
+
+         Mounted on arm_wrist_link, which is BEFORE wrist_roll in the chain. The
+         camera therefore never rolls, so the image up-vector is fixed and the
+         harness crosses four moving joints rather than five. See
+         docs/superpowers/specs/2026-07-30-behaviour-coordinator-design.md §4.
+
+         CO-LOCATION IS LOAD-BEARING. A 20 mm camera-to-ToF separation at 80 mm
+         range is a large angular disagreement - the ToF can be reading past the
+         target while the camera reports it centred. These offsets are a
+         placeholder until the physical pod exists; they must be remeasured, and
+         must never be assumed zero. -->
+    <xacro:property name="pod_camera_xyz" value="0.010 0.0 0.030"/>
+    <xacro:property name="pod_camera_rpy" value="0 0 0"/>
+    <xacro:property name="pod_tof_xyz"    value="0.010 0.0 0.015"/>
+
+    <link name="pod_camera_link">
+      <xacro:sensor_inertia/>
+    </link>
+    <joint name="pod_camera_joint" type="fixed">
+      <parent link="arm_wrist_link"/>
+      <child  link="pod_camera_link"/>
+      <origin xyz="${pod_camera_xyz}" rpy="${pod_camera_rpy}"/>
+    </joint>
+
+    <!-- ROS optical convention: z forward, x right, y down. Image pipelines and
+         the ray projection in drivebase_behaviour/localisation.py both assume
+         it. Same rotation the chassis camera_optical_joint uses. -->
+    <link name="pod_camera_optical_frame"/>
+    <joint name="pod_camera_optical_joint" type="fixed">
+      <parent link="pod_camera_link"/>
+      <child  link="pod_camera_optical_frame"/>
+      <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+    </joint>
+
+    <link name="pod_tof_link">
+      <xacro:sensor_inertia/>
+    </link>
+    <joint name="pod_tof_joint" type="fixed">
+      <parent link="arm_wrist_link"/>
+      <child  link="pod_tof_link"/>
+      <origin xyz="${pod_tof_xyz}" rpy="0 0 0"/>
+    </joint>
   </xacro:if>
 
   <!-- Included last: gazebo.xacro reads the geometry properties above. -->
