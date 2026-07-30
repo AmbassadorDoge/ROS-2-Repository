@@ -24,6 +24,22 @@ reasoning.
 ## Global Constraints
 
 - **Branch:** all work lands on `feature/behaviour-coordinator`.
+- **EVERY command runs through `scripts/dev.sh`.** The development machine is
+  an Apple Silicon Mac with no native ROS 2 or Gazebo; everything executes in
+  the `drivebase-dev:jazzy-pod` container with the repo mounted at `/ws`.
+  Where a step below writes `colcon build ...`, run
+  `./scripts/dev.sh colcon build ...`. Where it writes `python3 -m pytest ...`,
+  run `./scripts/dev.sh python3 -m pytest ...`. A bare `ros2` or `colcon` on
+  the host will fail with "command not found".
+- **Software rendering: trust geometry, never trust timing.** Docker on macOS
+  has no GPU passthrough, so Gazebo's camera and `gpu_lidar` fall back to
+  llvmpipe. They do work — verified, images arrive — but well under real time.
+  Results about frame layout, tf, kinematics, reach, detection and state
+  transitions are valid. Any figure phrased in Hz, or "how long did it take",
+  is **not**, and must be re-checked on a real GPU. `docs/STATUS.md` already
+  records a Nav2 stall that may be nothing more than a starved controller.
+- **Long sim launches:** allow ~45 s for Gazebo to come up under software
+  rendering, not the ~25 s the steps below suggest for a GPU machine.
 - **ROS 2 Jazzy / Gazebo Harmonic.** No package that is not in the Jazzy
   binary index.
 - **No new heavy runtime dependencies.** The Pi 5 shares cores with YOLO. No
