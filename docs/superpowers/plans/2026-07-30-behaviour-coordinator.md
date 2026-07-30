@@ -243,7 +243,10 @@ git commit -m "Add eye-in-hand sensor pod frames on arm_wrist_link"
 ### Task 2: Camera and ToF sensors in Gazebo
 
 **Files:**
-- Modify: `src/drivebase_description/urdf/gazebo.xacro` (append before `</robot>`)
+- Modify: `src/drivebase_description/urdf/gazebo.xacro` — **inside** the
+  `<xacro:if value="${use_arm}">` block, not before `</robot>`. The pod only
+  exists when the arm does; declaring these unconditionally references links
+  that are absent under `use_arm:=false`. Step 3 catches it.
 
 **Interfaces:**
 - Consumes: frames from Task 1
@@ -787,6 +790,16 @@ kill %1
 
 Choose the pose whose ToF reads ground at roughly 0.8-1.5 m — near enough to
 grasp after a short approach, far enough to be worth detecting.
+
+> **The ToF can see the arm's own gripper.** Measured during Task 2: at the
+> stow pose the ToF reads **0.062 m**, which is not ground — the pod points
+> along the wrist axis and the jaws are in front of it. Any candidate search
+> pose returning a range under ~0.3 m is looking at the robot, not the world.
+> Reject those rather than recording them, and check the camera image agrees
+> before trusting a range. If every candidate is occluded, the pod's mounting
+> `rpy` needs a pitch offset — raise that rather than working around it, since
+> a ToF that sees the gripper during CONFIRMING would confirm a grasp on the
+> robot's own hand.
 
 - [ ] **Step 4: Write down what was measured**
 
