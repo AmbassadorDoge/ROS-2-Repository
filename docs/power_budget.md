@@ -174,5 +174,12 @@ PIO hardware and reports position over USB serial.
 - [ ] Confirm the LiFePO₄ pack's BMS continuous rating ≥40 A
 - [ ] Measure SO101 holding current — the 11 W figure is inferred from STS3215
       idle current, not measured
+- [ ] Revise the ~12 kg loaded estimate: the SO-101 turns out to be **0.632 kg**
+      across 8 links (from its URDF), not the ~1.2 kg assumed when sizing motors.
+      Torque figures are therefore conservative, not optimistic.
+- [ ] **Blocking mechanical issue:** with the arm on the chassis top plane
+      (460 mm above ground) the gripper bottoms out at **389 mm above ground** —
+      measured in simulation across the joint range. It cannot reach litter. The
+      arm needs a lower mount before any pickup work is meaningful.
 - [ ] Publish `sensor_msgs/BatteryState` from the motion pack so Nav2 can see
       remaining charge, and so run logs carry voltage alongside results

@@ -8,6 +8,39 @@
   <xacro:arg name="use_sim" default="false"/>
   <xacro:property name="use_sim" value="$(arg use_sim)"/>
 
+  <!-- Mounts the SO-101 on the top plane. Off gives a bare drivebase, which is
+       useful for isolating whether a handling problem is the arm's mass or the
+       base itself. -->
+  <xacro:arg name="use_arm" default="true"/>
+  <xacro:property name="use_arm" value="$(arg use_arm)"/>
+
+  <xacro:if value="${use_arm}">
+    <xacro:include filename="$(find so101_description)/urdf/so101_macro.xacro"/>
+  </xacro:if>
+
+  <!-- Draw the ultrasonic cones in the Gazebo GUI. On by default: seeing which
+       cone caught an obstacle is most of the value of running the sim at all. -->
+  <xacro:arg name="show_sensor_rays" default="true"/>
+  <xacro:property name="show_sensor_rays" value="$(arg show_sensor_rays)"/>
+
+  <!-- Arm stow pose, radians. PROVISIONAL - the arm team owns the real one.
+       It matters to navigation, not just aesthetics: at the all-zero pose the
+       gripper reaches ~290 mm past the chassis face, roughly 200 mm outside the
+       robot's footprint circle, so Nav2 would plan paths that clip the arm
+       through obstacles. Stowing it inside the footprint is what lets the
+       footprint stay the chassis. -->
+       Found by sweeping poses in the running simulator and reading
+       base_link -> arm_gripper_frame_link from tf, not by hand-solved kinematics.
+       Measured result: gripper at x=+0.110, z=+0.592 - 105 mm inside the chassis
+       face and standing clear above the roof, versus x=+0.554 at the all-zero
+       pose. Joint use stays off the hard limits (lift 83%, elbow 92%, wrist 66%). -->
+  <xacro:property name="stow_shoulder_pan"  value="0.0"/>
+  <xacro:property name="stow_shoulder_lift" value="1.45"/>
+  <xacro:property name="stow_elbow_flex"    value="1.55"/>
+  <xacro:property name="stow_wrist_flex"    value="1.10"/>
+  <xacro:property name="stow_wrist_roll"    value="0.0"/>
+  <xacro:property name="stow_gripper"       value="0.0"/>
+
   <!-- ==================================================================
        GEOMETRY
        Every dimension the rest of the file depends on lives here. When the
@@ -18,12 +51,17 @@
   <xacro:property name="wheel_radius"    value="0.060"/>   <!-- 120 mm dia -->
   <xacro:property name="wheel_width"     value="0.040"/>   <!-- ESTIMATE -->
   <xacro:property name="track"           value="0.430"/>   <!-- left<->right -->
-  <xacro:property name="wheelbase"       value="0.150"/>   <!-- front<->rear -->
+  <!-- Square wheel layout. Puts the front axle at x=+215, well ahead of the arm
+       mount at x=+115, so the arm loads the wheelbase instead of cantilevering
+       past it. Side effect: the wheels now protrude ~100 mm beyond the chassis
+       front face - see the ultrasonic placement note below. -->
+  <xacro:property name="wheelbase"       value="0.430"/>   <!-- front<->rear -->
 
-  <!-- Chassis body. ESTIMATES until the print is measured. -->
-  <xacro:property name="chassis_length"  value="0.350"/>
-  <xacro:property name="chassis_width"   value="0.350"/>
-  <xacro:property name="chassis_height"  value="0.350"/>
+  <!-- Chassis body. Footprint is measured; height is still an ESTIMATE carried
+       over from "cube chassis". -->
+  <xacro:property name="chassis_length"  value="0.430"/>
+  <xacro:property name="chassis_width"   value="0.430"/>
+  <xacro:property name="chassis_height"  value="0.430"/>
   <xacro:property name="ground_clearance" value="0.030"/>
 
   <!-- Masses. ESTIMATES. Only matter for simulation dynamics. -->
@@ -187,7 +225,14 @@
   <!-- Ultrasonic band. Five sensors across the front face, fanned to cover
        the drive corridor. Mounted low so the arm and its payload stay out
        of the cones. -->
-  <xacro:property name="us_z" value="0.050"/>
+  <!-- 0.14 above base_link = 200 mm above ground, clearing the 120 mm wheel tops
+       by 80 mm. At 0.05 the outer cones looked straight into the front wheels and
+       reported a permanent 0.08-0.09 m obstacle (measured, before this change) -
+       the square wheelbase puts the front wheels 60 mm ahead of the chassis face,
+       so anything at hub height sees them. Raising the band clears the wheels
+       geometrically and keeps the full +-50 deg fan; narrowing the fan instead
+       would have cost real coverage. -->
+  <xacro:property name="us_z" value="0.140"/>
 
   <xacro:macro name="ultrasonic" params="name y yaw_deg">
     <link name="ultrasonic_${name}_link">
@@ -210,6 +255,17 @@
   <xacro:ultrasonic name="front_center"  y="0.000"  yaw_deg="0"/>
   <xacro:ultrasonic name="front_midright" y="-0.060" yaw_deg="-25"/>
   <xacro:ultrasonic name="front_right"   y="-0.120" yaw_deg="-50"/>
+
+  <!-- ==================================================================
+       ARM
+       SO-101 on the top plane, its own base frame already Z-up so the mount
+       transform is identity.
+       ================================================================== -->
+  <xacro:if value="${use_arm}">
+    <xacro:so101 prefix="arm_" parent="arm_mount_link">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:so101>
+  </xacro:if>
 
   <!-- Included last: gazebo.xacro reads the geometry properties above. -->
   <xacro:if value="${use_sim}">

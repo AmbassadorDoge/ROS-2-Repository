@@ -61,18 +61,54 @@
     <plugin filename="gz-sim-joint-state-publisher-system"
             name="gz::sim::systems::JointStatePublisher">
       <topic>${gz_prefix}/joint_state</topic>
-      <!-- KNOWN WART: this publishes every physics step (~1 kHz) and gz's
+      <!-- No <joint_name> entries: publishes every joint, so the arm's six come
+           along automatically and robot_state_publisher can build arm tf.
+
+           KNOWN WART: this publishes every physics step (~1 kHz) and gz's
            JointStatePublisher has no rate limit - <update_rate> here is silently
            ignored (measured: still 980 Hz with it set). Tolerated because it is
-           sim-only and only drives wheel-spin visuals; nothing downstream reads
-           wheel angle. On hardware the Pico publishes joint states at a sane
-           rate instead. Revisit only if it hurts real-time factor. -->
-      <joint_name>front_left_wheel_joint</joint_name>
-      <joint_name>front_right_wheel_joint</joint_name>
-      <joint_name>rear_left_wheel_joint</joint_name>
-      <joint_name>rear_right_wheel_joint</joint_name>
+           sim-only. On hardware the Pico publishes wheel state and the Feetech
+           bus publishes arm state, both at sane rates. -->
     </plugin>
   </gazebo>
+
+  <!-- ==================================================================
+       ARM JOINT HOLD
+       Without a controller the arm joints are free and the arm collapses under
+       gravity on the first step, which also shifts the base's centre of mass and
+       corrupts any handling measurement. Real STS3215 servos hold position, so
+       modelling them as position-controlled is both more correct and more stable.
+       This is what the ~11 W idle arm draw in docs/power_budget.md pays for.
+       ================================================================== -->
+  <xacro:if value="${use_arm}">
+    <xacro:macro name="arm_joint_hold" params="joint target:=0">
+      <gazebo>
+        <plugin filename="gz-sim-joint-position-controller-system"
+                name="gz::sim::systems::JointPositionController">
+          <joint_name>arm_${joint}</joint_name>
+          <topic>/arm/${joint}/position</topic>
+          <initial_position>${target}</initial_position>
+          <p_gain>4.0</p_gain>
+          <i_gain>0.05</i_gain>
+          <d_gain>0.15</d_gain>
+          <i_max>1.0</i_max>
+          <i_min>-1.0</i_min>
+          <cmd_max>10.0</cmd_max>
+          <cmd_min>-10.0</cmd_min>
+        </plugin>
+      </gazebo>
+    </xacro:macro>
+
+    <!-- Targets come from the stow_* properties in drivebase.urdf.xacro. Command
+         any joint at runtime with
+         `ros2 topic pub /arm/<joint>/position std_msgs/msg/Double ...`. -->
+    <xacro:arm_joint_hold joint="shoulder_pan"  target="${stow_shoulder_pan}"/>
+    <xacro:arm_joint_hold joint="shoulder_lift" target="${stow_shoulder_lift}"/>
+    <xacro:arm_joint_hold joint="elbow_flex"    target="${stow_elbow_flex}"/>
+    <xacro:arm_joint_hold joint="wrist_flex"    target="${stow_wrist_flex}"/>
+    <xacro:arm_joint_hold joint="wrist_roll"    target="${stow_wrist_roll}"/>
+    <xacro:arm_joint_hold joint="gripper"       target="${stow_gripper}"/>
+  </xacro:if>
 
   <!-- ==================================================================
        WHEEL CONTACT
@@ -163,7 +199,9 @@
       <sensor name="ultrasonic_${name}" type="gpu_lidar">
         <always_on>1</always_on>
         <update_rate>3</update_rate>
-        <visualize>false</visualize>
+        <!-- Draws the cones as visible rays in the Gazebo GUI, so you can watch
+             them hit and clear obstacles. Costs nothing headless. -->
+        <visualize>${show_sensor_rays}</visualize>
         <topic>/ultrasonic/${name}/scan</topic>
         <gz_frame_id>ultrasonic_${name}_link</gz_frame_id>
         <lidar>

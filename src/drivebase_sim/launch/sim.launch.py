@@ -13,7 +13,11 @@ and the robot will not appear to move in RViz. That is expected, not a bug.
 """
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    SetEnvironmentVariable,
+)
 from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
@@ -51,7 +55,23 @@ def generate_launch_description() -> LaunchDescription:
         [FindPackageShare("ros_gz_sim"), "launch", "gz_sim.launch.py"]
     )
 
+    # Gazebo rewrites package:// mesh URIs to model:// and then resolves them
+    # against GZ_SIM_RESOURCE_PATH, which ROS does not populate. Without this the
+    # arm's meshes fail to load with "Unable to find file
+    # [model://so101_description/...]" and the arm is invisible - though still
+    # fully present in physics, which makes it a confusing thing to chase.
+    #
+    # The path must contain the directory that *holds* the package folder, hence
+    # the trailing "..".
+    resource_path = [
+        PathJoinSubstitution([FindPackageShare("so101_description"), ".."]),
+        ":",
+        PathJoinSubstitution([FindPackageShare("drivebase_description"), ".."]),
+    ]
+
     return LaunchDescription([
+        SetEnvironmentVariable("GZ_SIM_RESOURCE_PATH", resource_path),
+
         DeclareLaunchArgument(
             "headless",
             default_value="false",
