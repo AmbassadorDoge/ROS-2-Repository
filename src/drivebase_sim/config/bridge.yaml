@@ -14,16 +14,24 @@
   gz_type_name: "gz.msgs.Clock"
   direction: GZ_TO_ROS
 
-# TwistStamped, not Twist. Verified against Jazzy Nav2 1.3.12: nav2_velocity_smoother
-# is TwistStamped-only, and controller_server publishes stamped. The bridge maps
-# TwistStamped -> gz.msgs.Twist and drops the header, which is what DiffDrive wants.
+# Twist, NOT TwistStamped.
 #
-# Consequence for manual testing: `ros2 topic pub /cmd_vel geometry_msgs/msg/Twist`
-# will silently do nothing. Use TwistStamped, or teleop_twist_keyboard with
-# -p stamped:=true.
+# I originally set this to TwistStamped after finding that nav2_velocity_smoother's
+# library is full of TwistStamped symbols. That was the wrong inference: the library
+# supports both and picks via `enable_stamped_cmd_vel`, which defaults to false in
+# Jazzy 1.3.12. Observed at runtime, Nav2's whole chain publishes plain Twist:
+#
+#   /cmd_vel_nav       geometry_msgs/msg/Twist
+#   /cmd_vel_smoothed  geometry_msgs/msg/Twist
+#   /cmd_vel           geometry_msgs/msg/Twist   <- collision_monitor output
+#
+# With TwistStamped here, /cmd_vel carried TWO types at once, the bridge received
+# nothing, and the robot sat still while Nav2 happily published at 20 Hz. A type
+# mismatch on a topic is silent - no error anywhere - so it is worth checking
+# `ros2 topic info /cmd_vel` first whenever the robot ignores commands.
 - ros_topic_name: "/cmd_vel"
   gz_topic_name: "/model/drivebase/cmd_vel"
-  ros_type_name: "geometry_msgs/msg/TwistStamped"
+  ros_type_name: "geometry_msgs/msg/Twist"
   gz_type_name: "gz.msgs.Twist"
   direction: ROS_TO_GZ
 

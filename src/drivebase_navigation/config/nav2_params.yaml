@@ -1,0 +1,326 @@
+# Nav2 configuration for the litter-collection drivebase.
+#
+# Deliberately narrower than nav2_bringup's default params: no AMCL, no map
+# server, no static layer. This robot navigates outdoors with no prior map, so
+# both costmaps are rolling windows built from live ultrasonic returns. A map ->
+# odom transform still has to exist for Nav2's frame expectations; for now that is
+# a static identity published by the launch file, and later it becomes the output
+# of the GPS-corrected global EKF.
+#
+# TWO DELIBERATE DEPARTURES FROM UPSTREAM DEFAULTS
+#
+# 1. Regulated Pure Pursuit instead of MPPI. Jazzy defaults to MPPI, which rolls
+#    out 2000 trajectories x 56 steps every control cycle. The Pi 5 is already
+#    sharing cores with YOLO inference, the EKF, and five sensor drivers, so that
+#    budget does not exist. RPP is far cheaper and, separately, prefers arcs over
+#    point turns - which matters because in-place rotation is this robot's
+#    peak-current maneuver (all four wheels scrubbing; see docs/power_budget.md)
+#    and only ~65% of a commanded rotation is actually achieved.
+#
+# 2. RangeSensorLayer instead of a laser/voxel layer, because there is no LIDAR.
+
+controller_server:
+  ros__parameters:
+    controller_frequency: 20.0
+    costmap_update_timeout: 0.30
+    min_x_velocity_threshold: 0.001
+    min_y_velocity_threshold: 0.5
+    min_theta_velocity_threshold: 0.001
+    failure_tolerance: 0.3
+    progress_checker_plugins: ["progress_checker"]
+    goal_checker_plugins: ["general_goal_checker"]
+    controller_plugins: ["FollowPath"]
+
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.5
+      movement_time_allowance: 15.0
+
+    general_goal_checker:
+      stateful: True
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance: 0.25
+      # Loose: holding a tight final heading costs a point turn, and the scrub
+      # measurement says those are both expensive and imprecise. Approach
+      # direction for a pickup is the arm's problem, not the base's.
+      yaw_goal_tolerance: 0.50
+
+    FollowPath:
+      plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
+      desired_linear_vel: 0.45
+      lookahead_dist: 0.60
+      min_lookahead_dist: 0.30
+      max_lookahead_dist: 0.90
+      lookahead_time: 1.5
+      use_velocity_scaled_lookahead_dist: true
+      transform_tolerance: 0.15
+
+      min_approach_linear_velocity: 0.05
+      approach_velocity_scaling_dist: 0.6
+
+      # Slow down in tight curves rather than trying to power through them; on
+      # skid steer a tight arc is already partly a scrub.
+      use_regulated_linear_velocity_scaling: true
+      regulated_linear_scaling_min_radius: 0.90
+      regulated_linear_scaling_min_speed: 0.25
+      use_cost_regulated_linear_velocity_scaling: false
+
+      use_fixed_curvature_lookahead: false
+      curvature_lookahead_dist: 0.30
+
+      # Point turns are permitted but discouraged: 0.9 rad (~52 deg) of heading
+      # error is required before the controller gives up on arcing. Ultrasonics
+      # only face forward, so reversing is blind - hence allow_reversing false.
+      use_rotate_to_heading: true
+      rotate_to_heading_min_angle: 0.90
+      rotate_to_heading_angular_vel: 0.80
+      allow_reversing: false
+      max_angular_accel: 2.0
+
+      use_collision_detection: true
+      max_allowed_time_to_collision_up_to_carrot: 1.0
+      max_robot_pose_search_dist: 10.0
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      update_frequency: 5.0
+      publish_frequency: 2.0
+      global_frame: odom
+      robot_base_frame: base_footprint
+      rolling_window: true
+      width: 4
+      height: 4
+      resolution: 0.05
+
+      # Wheel envelope, not the chassis: the square wheelbase puts the wheels at
+      # +-0.215 with 0.04 width and 0.06 radius, so they reach +-0.275 in x and
+      # +-0.235 in y. The arm's base plate protrudes ~0.055 past the chassis face,
+      # which lands inside this, so the arm does not enlarge the footprint.
+      footprint: "[[0.275, 0.235], [0.275, -0.235], [-0.275, -0.235], [-0.275, 0.235]]"
+
+      plugins: ["range_sensor_layer", "inflation_layer"]
+
+      range_sensor_layer:
+        plugin: "nav2_costmap_2d::RangeSensorLayer"
+        enabled: true
+        topics: ["/ultrasonic/front_left",
+                 "/ultrasonic/front_midleft",
+                 "/ultrasonic/front_center",
+                 "/ultrasonic/front_midright",
+                 "/ultrasonic/front_right"]
+        input_sensor_type: ALL
+        # laserscan_to_range publishes max_range when a cone gets no echo, which
+        # is what a real HC-SR04 driver reports on timeout. This makes the layer
+        # treat that as "clear out to max" rather than "obstacle at max".
+        clear_on_max_reading: true
+        # 0.0 disables the stale-data timeout. The band sweeps at only ~3 Hz
+        # because real HC-SR04s cross-talk and must fire sequentially; a default
+        # timeout would keep declaring these sensors dead between sweeps.
+        no_readings_timeout: 0.0
+        clear_threshold: 0.20
+        mark_threshold: 0.80
+        phi: 1.2
+        inflate_cone: 1.0
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        # Robot half-diagonal is ~0.36 m; 0.55 leaves real clearance without
+        # closing off gaps this robot can actually fit through.
+        inflation_radius: 0.55
+        cost_scaling_factor: 3.0
+
+      always_send_full_costmap: True
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      update_frequency: 1.0
+      publish_frequency: 1.0
+      global_frame: map
+      robot_base_frame: base_footprint
+      # Rolling, with no static layer: there is no prior map of an outdoor field.
+      # The window travels with the robot, so obstacles are remembered only while
+      # nearby - acceptable because the mission is "sweep an area", not "navigate
+      # a known floorplan".
+      rolling_window: true
+      width: 25
+      height: 25
+      resolution: 0.05
+      track_unknown_space: false
+
+      footprint: "[[0.275, 0.235], [0.275, -0.235], [-0.275, -0.235], [-0.275, 0.235]]"
+
+      plugins: ["range_sensor_layer", "inflation_layer"]
+
+      range_sensor_layer:
+        plugin: "nav2_costmap_2d::RangeSensorLayer"
+        enabled: true
+        topics: ["/ultrasonic/front_left",
+                 "/ultrasonic/front_midleft",
+                 "/ultrasonic/front_center",
+                 "/ultrasonic/front_midright",
+                 "/ultrasonic/front_right"]
+        input_sensor_type: ALL
+        clear_on_max_reading: true
+        no_readings_timeout: 0.0
+        clear_threshold: 0.20
+        mark_threshold: 0.80
+        phi: 1.2
+        inflate_cone: 1.0
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        inflation_radius: 0.55
+        cost_scaling_factor: 3.0
+
+      always_send_full_costmap: True
+
+planner_server:
+  ros__parameters:
+    expected_planner_frequency: 5.0
+    planner_plugins: ["GridBased"]
+    costmap_update_timeout: 1.0
+    GridBased:
+      plugin: "nav2_navfn_planner::NavfnPlanner"
+      tolerance: 0.5
+      use_astar: false
+      # True because the rolling global costmap is mostly unknown space - the
+      # robot has not sensed it yet. False here would refuse to plan anywhere.
+      allow_unknown: true
+
+behavior_server:
+  ros__parameters:
+    local_costmap_topic: local_costmap/costmap_raw
+    global_costmap_topic: global_costmap/costmap_raw
+    local_footprint_topic: local_costmap/published_footprint
+    global_footprint_topic: global_costmap/published_footprint
+    cycle_frequency: 10.0
+    behavior_plugins: ["spin", "backup", "drive_on_heading", "wait"]
+    spin:
+      plugin: "nav2_behaviors::Spin"
+    backup:
+      plugin: "nav2_behaviors::BackUp"
+    drive_on_heading:
+      plugin: "nav2_behaviors::DriveOnHeading"
+    wait:
+      plugin: "nav2_behaviors::Wait"
+    local_frame: odom
+    global_frame: map
+    robot_base_frame: base_footprint
+    transform_tolerance: 0.15
+    simulate_ahead_time: 2.0
+    max_rotational_vel: 0.8
+    min_rotational_vel: 0.4
+    rotational_acc_lim: 2.0
+
+bt_navigator:
+  ros__parameters:
+    global_frame: map
+    robot_base_frame: base_footprint
+    odom_topic: /odometry/filtered
+    bt_loop_duration: 10
+    default_server_timeout: 20
+    wait_for_service_timeout: 1000
+    action_server_result_timeout: 900.0
+    navigators: ["navigate_to_pose", "navigate_through_poses"]
+    navigate_to_pose:
+      plugin: "nav2_bt_navigator::NavigateToPoseNavigator"
+    navigate_through_poses:
+      plugin: "nav2_bt_navigator::NavigateThroughPosesNavigator"
+    error_code_names:
+      - compute_path_error_code
+      - follow_path_error_code
+
+velocity_smoother:
+  ros__parameters:
+    smoothing_frequency: 20.0
+    scale_velocities: False
+    feedback: "OPEN_LOOP"
+    # [x, y, theta]. Angular capped at 1.0 rather than upstream's 2.0: the base
+    # only achieves ~65% of a commanded rotation, so commanding more just burns
+    # current in scrub without turning faster.
+    max_velocity: [0.50, 0.0, 1.0]
+    min_velocity: [-0.30, 0.0, -1.0]
+    max_accel: [1.5, 0.0, 2.0]
+    max_decel: [-1.5, 0.0, -2.0]
+    odom_topic: "/odometry/filtered"
+    odom_duration: 0.1
+    deadband_velocity: [0.0, 0.0, 0.0]
+    velocity_timeout: 1.0
+
+# Independent safety layer, and NOT optional: nav2_bringup's navigation_launch.py
+# always starts this node, so leaving it unconfigured aborts the entire lifecycle
+# bringup with "parameter 'observation_sources' is not initialized".
+#
+# It sits last in the velocity chain -
+#   controller -> cmd_vel_nav -> smoother -> cmd_vel_smoothed -> monitor -> cmd_vel
+# - so it can veto motion regardless of what the planner wants. That is the
+# software counterpart to the hardware e-stop in docs/power_budget.md.
+collision_monitor:
+  ros__parameters:
+    base_frame_id: "base_footprint"
+    odom_frame_id: "odom"
+    cmd_vel_in_topic: "cmd_vel_smoothed"
+    cmd_vel_out_topic: "cmd_vel"
+    state_topic: "collision_monitor_state"
+    transform_tolerance: 0.2
+    # 2.0, not the 1.0 default: the ultrasonic band sweeps at only ~3 Hz because
+    # real HC-SR04s cross-talk and must fire sequentially. A 1 s timeout would
+    # intermittently declare the sensors stale and disable the safety layer -
+    # the worst possible failure direction.
+    source_timeout: 2.0
+    base_shift_correction: True
+    stop_pub_timeout: 2.0
+
+    polygons: ["StopZone"]
+    StopZone:
+      type: "polygon"
+      action_type: "stop"
+      # Starts just ahead of the wheel envelope (0.275) and reaches 0.55 m. Only
+      # covers the forward arc, because that is the only direction with sensors -
+      # a rear zone would be a lie.
+      points: "[[0.28, 0.24], [0.55, 0.24], [0.55, -0.24], [0.28, -0.24]]"
+      # Two cones must agree before stopping. One would be safer but trips on a
+      # single spurious return, and ultrasonics on grass produce those. At close
+      # range a real obstacle lights several cones at once - measured: all five
+      # saw the barrier at 0.36 m.
+      min_points: 2
+      visualize: True
+      polygon_pub_topic: "collision_stop_zone"
+      enabled: True
+
+    observation_sources: ["us_left", "us_midleft", "us_center",
+                          "us_midright", "us_right"]
+    us_left:
+      type: "range"
+      topic: "/ultrasonic/front_left"
+      enabled: True
+    us_midleft:
+      type: "range"
+      topic: "/ultrasonic/front_midleft"
+      enabled: True
+    us_center:
+      type: "range"
+      topic: "/ultrasonic/front_center"
+      enabled: True
+    us_midright:
+      type: "range"
+      topic: "/ultrasonic/front_midright"
+      enabled: True
+    us_right:
+      type: "range"
+      topic: "/ultrasonic/front_right"
+      enabled: True
+
+waypoint_follower:
+  ros__parameters:
+    loop_rate: 20
+    stop_on_failure: false
+    action_server_result_timeout: 900.0
+    waypoint_task_executor_plugin: "wait_at_waypoint"
+    wait_at_waypoint:
+      plugin: "nav2_waypoint_follower::WaitAtWaypoint"
+      enabled: True
+      # Long enough for the arm to run a pickup once that action exists.
+      waypoint_pause_duration: 200

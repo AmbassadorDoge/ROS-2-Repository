@@ -20,7 +20,7 @@ is slow).
 
 | Topic | Type | Rate |
 |---|---|---|
-| `/cmd_vel` | `geometry_msgs/TwistStamped` | in |
+| `/cmd_vel` | `geometry_msgs/Twist` | in |
 | `/odom` | `nav_msgs/Odometry` | 50 Hz |
 | `/imu/data` | `sensor_msgs/Imu` | 100 Hz |
 | `/gps/fix` | `sensor_msgs/NavSatFix` | 5 Hz |
@@ -29,18 +29,17 @@ is slow).
 
 ## Gotchas
 
-**`/cmd_vel` is `TwistStamped`, not `Twist`.** Jazzy Nav2 publishes stamped
-commands. Publishing plain `Twist` does nothing at all, silently:
+**`/cmd_vel` is plain `Twist`.** Jazzy Nav2's velocity chain publishes unstamped
+`Twist` (`enable_stamped_cmd_vel` defaults to false), so the bridge matches that.
 
 ```bash
-# works
-ros2 topic pub -r 20 /cmd_vel geometry_msgs/msg/TwistStamped "{twist: {linear: {x: 0.3}}}"
-# silently ignored
 ros2 topic pub -r 20 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.3}}"
+ros2 run teleop_twist_keyboard teleop_twist_keyboard   # no stamped flag
 ```
 
-For keyboard teleop: `ros2 run teleop_twist_keyboard teleop_twist_keyboard
---ros-args -p stamped:=true`.
+A type mismatch here is **silent** — no error on either side. `/cmd_vel` will just
+show two types in `ros2 topic info /cmd_vel` and the robot will ignore everything
+while Nav2 publishes happily at 20 Hz. Check that first if the robot won't move.
 
 **DiffDrive latches the last command.** Stop publishing and the robot keeps
 driving forever. Send an explicit zero to stop it. (The real Pico firmware must
