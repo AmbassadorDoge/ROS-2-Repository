@@ -134,8 +134,14 @@ ToF, a commandable arm and something to pick up.
 ### Task 1: Sensor pod frames
 
 **Files:**
-- Modify: `src/drivebase_description/urdf/drivebase.urdf.xacro` (after the arm
-  block, ~line 289)
+- Modify: `src/drivebase_description/urdf/drivebase.urdf.xacro` — **inside** the
+  `<xacro:if value="${use_arm}">` block, immediately after the closing
+  `</xacro:so101>` and **before** the block's `</xacro:if>`.
+
+> Not after the closing `</xacro:if>`. Placing it there compiles, but emits
+> `pod_camera_link` unconditionally with `arm_wrist_link` as its parent — a
+> link that does not exist when `use_arm:=false` — producing a broken tree.
+> Step 3 below is what catches this.
 
 **Interfaces:**
 - Consumes: nothing
@@ -145,8 +151,10 @@ ToF, a commandable arm and something to pick up.
 
 - [ ] **Step 1: Add the pod frames**
 
-Insert inside the `<xacro:if value="${use_arm}">` block that mounts the arm, after
-the `<xacro:so101 .../>` call:
+Insert inside the `<xacro:if value="${use_arm}">` block that mounts the arm,
+after the `<xacro:so101 .../>` call. The snippet below is written at 2-space
+indent; re-indent it to match the 4-space indent the block's existing children
+use.
 
 ```xml
   <!-- Sensor pod: camera + ToF, eye-in-hand.
