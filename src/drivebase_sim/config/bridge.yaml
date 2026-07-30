@@ -92,3 +92,17 @@
   ros_type_name: "sensor_msgs/msg/LaserScan"
   gz_type_name: "gz.msgs.LaserScan"
   direction: GZ_TO_ROS
+
+# Ground truth from the OdometryPublisher plugin (the model's true world pose).
+#
+# Bridged to /gz/ground_truth and NEVER onto /tf: ground truth must not displace
+# the estimate it is being used to measure.
+#
+# Not using /world/.../dynamic_pose/info - that arrives as gz.msgs.Pose_V and the
+# bridge's TFMessage conversion leaves child_frame_id empty (measured), so the
+# robot cannot be picked out of the pose array.
+- ros_topic_name: "/gz/ground_truth"
+  gz_topic_name: "/model/drivebase/ground_truth"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
+  direction: GZ_TO_ROS

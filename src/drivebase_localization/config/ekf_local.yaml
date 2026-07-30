@@ -26,9 +26,17 @@
 # consistently under-turn. A second run that had translated first showed 1.94x,
 # so the factor is state-dependent, not a constant to hard-code.
 #
-# CALIBRATION ITEM: measure this ratio on the real robot. It is the effective-track
-# correction, and in sim it depends on the wheel friction values in gazebo.xacro,
-# which are guesses until matched against hardware.
+# Since measured properly over 6 clean turns with the scripted_drive rig: the
+# ratio is 1.742x, stdev 0.025, and stable across lateral-friction values from
+# 0.15 to 0.6 - it is kinematic, not frictional. The 1.53x and 1.94x figures above
+# were single samples from an unreliable harness; 1.742 supersedes them.
+#
+# Also measured: a 90 deg turn costs ~0.35 m of position error, while 20 m of
+# straight driving costs essentially nothing. Turns are the entire error budget.
+#
+# CALIBRATION ITEM: this still has to be measured on the real robot. The simulated
+# IMU has near-perfect heading, so 0.35 m per turn is a LOWER BOUND.
+# See docs/localization_accuracy.md.
 
 ekf_local:
   ros__parameters:

@@ -37,9 +37,14 @@
            That bias is a feature, not a bug: real skid-steer wheel odometry has
            the same bias in the same direction, which is exactly why the EKF must
            take yaw from the IMU rather than the wheels. Compensating it means
-           using an effective track wider than the physical one (typically
-           1.5-1.8x). Left at the true value deliberately - that factor gets
-           measured on hardware, not guessed here. -->
+           using an effective track wider than the physical one. MEASURED in
+           simulation over 6 clean turns: 1.742x (stdev 0.025), i.e. an effective
+           wheel_separation of 0.749 m. See docs/localization_accuracy.md.
+
+           Left at the physical track deliberately: the simulation should carry
+           the same bias the real robot has, which is what forces the EKF to take
+           yaw from the IMU rather than the wheels. Correcting it here would hide
+           the very effect the EKF exists to handle. -->
       <wheel_separation>${track}</wheel_separation>
       <wheel_radius>${wheel_radius}</wheel_radius>
 
@@ -56,6 +61,27 @@
       <tf_topic>${gz_prefix}/unused_tf</tf_topic>
 
       <max_linear_acceleration>1.5</max_linear_acceleration>
+    </plugin>
+
+    <!-- GROUND TRUTH, for measuring the estimators against. Reads the model's
+         true world pose (WorldPoseTag), so it is not a simulated sensor and
+         carries no error - gaussian_noise is deliberately left unset.
+
+         Chosen over bridging /world/.../dynamic_pose/info: that arrives as a
+         Pose_V, and the bridge's TFMessage conversion leaves child_frame_id
+         EMPTY (measured), so there is no way to tell which entity is the robot.
+
+         tf_topic is parked unbridged for the same reason as DiffDrive's - ground
+         truth must never reach /tf, or it would displace the estimate being
+         measured. -->
+    <plugin filename="gz-sim-odometry-publisher-system"
+            name="gz::sim::systems::OdometryPublisher">
+      <odom_topic>${gz_prefix}/ground_truth</odom_topic>
+      <odom_frame>truth_origin</odom_frame>
+      <robot_base_frame>base_footprint</robot_base_frame>
+      <odom_publish_frequency>50</odom_publish_frequency>
+      <dimensions>2</dimensions>
+      <tf_topic>${gz_prefix}/unused_truth_tf</tf_topic>
     </plugin>
 
     <plugin filename="gz-sim-joint-state-publisher-system"
@@ -118,10 +144,13 @@
        slide like ice. These values are a starting point to tune against
        measured hardware.
        ================================================================== -->
+  <xacro:property name="wheel_mu1" value="$(arg wheel_mu1)"/>
+  <xacro:property name="wheel_mu2" value="$(arg wheel_mu2)"/>
+
   <xacro:macro name="wheel_surface" params="link">
     <gazebo reference="${link}">
-      <mu1>1.0</mu1>
-      <mu2>0.6</mu2>
+      <mu1>${wheel_mu1}</mu1>
+      <mu2>${wheel_mu2}</mu2>
     </gazebo>
   </xacro:macro>
 

@@ -55,9 +55,12 @@ def generate_launch_description() -> LaunchDescription:
     with_rviz = LaunchConfiguration("rviz")
     with_ekf = LaunchConfiguration("ekf")
     use_gps = LaunchConfiguration("gps")
+    use_arm = LaunchConfiguration("arm")
+    wheel_mu2 = LaunchConfiguration("wheel_mu2")
 
     robot_description = ParameterValue(
-        Command(["xacro ", xacro_file, " use_sim:=true"]),
+        Command(["xacro ", xacro_file, " use_sim:=true", " use_arm:=", use_arm,
+                  " wheel_mu2:=", wheel_mu2]),
         value_type=str,
     )
 
@@ -96,6 +99,17 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument(
             "rviz", default_value="false",
             description="Also open RViz with the sim view.",
+        ),
+        DeclareLaunchArgument(
+            "arm", default_value="true",
+            description="Mount the SO-101. Turn off to isolate whether a handling "
+                        "problem is the arm's mass and joint controllers or the "
+                        "base itself.",
+        ),
+        DeclareLaunchArgument(
+            "wheel_mu2", default_value="0.6",
+            description="Lateral wheel friction. Prime suspect for the robot "
+                        "being unable to rotate in place.",
         ),
         DeclareLaunchArgument(
             "gps", default_value="false",

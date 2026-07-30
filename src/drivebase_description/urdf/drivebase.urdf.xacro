@@ -18,6 +18,13 @@
     <xacro:include filename="$(find so101_description)/urdf/so101_macro.xacro"/>
   </xacro:if>
 
+  <!-- Wheel contact friction, exposed so the contact model can be swept. The
+       simulated robot cannot rotate in place reliably - only the first rotation
+       of a run succeeds - and lateral friction is the prime suspect. See
+       docs/localization_accuracy.md. -->
+  <xacro:arg name="wheel_mu1" default="1.0"/>
+  <xacro:arg name="wheel_mu2" default="0.6"/>
+
   <!-- Draw the ultrasonic cones in the Gazebo GUI. On by default: seeing which
        cone caught an obstacle is most of the value of running the sim at all. -->
   <xacro:arg name="show_sensor_rays" default="true"/>
@@ -28,7 +35,8 @@
        gripper reaches ~290 mm past the chassis face, roughly 200 mm outside the
        robot's footprint circle, so Nav2 would plan paths that clip the arm
        through obstacles. Stowing it inside the footprint is what lets the
-       footprint stay the chassis. -->
+       footprint stay the chassis.
+
        Measured in the running simulator via base_link -> arm_gripper_frame_link,
        not hand-solved: gripper at x=+0.309, z=+0.170 (230 mm above ground). Folded
        rather than extended, gripper carried clear of the ground, and every joint
