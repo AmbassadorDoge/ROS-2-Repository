@@ -171,6 +171,29 @@ def generate_launch_description() -> LaunchDescription:
             output="screen",
         ),
 
+        # Second instance for the pod ToF. Same collapse logic, different
+        # topics and radiation type - a ToF reports one distance along its
+        # axis, and with <samples>1</samples> the minimum-of-cone reduces to
+        # exactly that.
+        #
+        # Needs an explicit node name: two instances of the same executable
+        # would otherwise both be /laserscan_to_range, and parameters set on
+        # one can land on the other.
+        Node(
+            package="drivebase_sim",
+            executable="laserscan_to_range",
+            name="tof_to_range",
+            parameters=[{
+                "use_sim_time": True,
+                "sensor_names": ["pod"],
+                "scan_topic_template": "/tof/{name}/scan",
+                "range_topic_template": "/tof/{name}",
+                "frame_template": "pod_tof_link",
+                "radiation_type": "infrared",
+            }],
+            output="screen",
+        ),
+
         # Fills covariance the gz NavSat message cannot carry. Always on, not
         # gated behind gps:=true, so /gps/fix means the same thing either way.
         Node(

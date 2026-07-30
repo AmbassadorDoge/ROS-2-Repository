@@ -37,6 +37,10 @@ class LaserScanToRange(Node):
         self.declare_parameter("scan_topic_template", "/ultrasonic/{name}/scan")
         self.declare_parameter("range_topic_template", "/ultrasonic/{name}")
         self.declare_parameter("frame_template", "ultrasonic_{name}_link")
+        # ULTRASOUND for the HC-SR04s, INFRARED for the pod ToF. The value
+        # matters to consumers that filter by sensor type; Nav2's
+        # range_sensor_layer does not, but rviz displays them differently.
+        self.declare_parameter("radiation_type", "ultrasound")
 
         sensor_names: list[str] = list(
             self.get_parameter("sensor_names").value
@@ -49,6 +53,10 @@ class LaserScanToRange(Node):
         )
         self.frame_template: str = str(
             self.get_parameter("frame_template").value
+        )
+        radiation = str(self.get_parameter("radiation_type").value).lower()
+        self.radiation_type = (
+            Range.INFRARED if radiation == "infrared" else Range.ULTRASOUND
         )
 
         # Named *_by_name to avoid shadowing Node.publishers / Node.subscriptions.
@@ -82,7 +90,7 @@ class LaserScanToRange(Node):
         message.header.stamp = scan.header.stamp
         message.header.frame_id = self.frame_template.format(name=sensor_name)
 
-        message.radiation_type = Range.ULTRASOUND
+        message.radiation_type = self.radiation_type
         message.min_range = scan.range_min
         message.max_range = scan.range_max
         message.field_of_view = scan.angle_max - scan.angle_min

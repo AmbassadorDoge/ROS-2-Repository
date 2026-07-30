@@ -106,3 +106,86 @@
   ros_type_name: "nav_msgs/msg/Odometry"
   gz_type_name: "gz.msgs.Odometry"
   direction: GZ_TO_ROS
+
+# Eye-in-hand camera. camera_info carries the intrinsics that
+# drivebase_behaviour/localisation.py needs to turn a pixel into a ray - the
+# coordinator must never hardcode fx/fy/cx/cy.
+#
+# _raw on the ROS side: image_transport republishers expect a raw base topic and
+# derive /pod_camera/image_raw/compressed and friends from it. The gz side keeps
+# the plain name the sensor's <topic> declares.
+- ros_topic_name: "/pod_camera/image_raw"
+  gz_topic_name: "/pod_camera/image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/pod_camera/camera_info"
+  gz_topic_name: "/pod_camera/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
+# ToF cone. Collapsed to sensor_msgs/Range by a second laserscan_to_range
+# instance, the same way the ultrasonics are.
+#
+# Gazebo also emits /tof/pod/scan/points, a pointcloud companion it makes for
+# every gpu_lidar. Nothing consumes it, so it is deliberately not bridged -
+# bridging it would cost a full PointCloud2 serialisation per scan for nobody.
+- ros_topic_name: "/tof/pod/scan"
+  gz_topic_name: "/tof/pod/scan"
+  ros_type_name: "sensor_msgs/msg/LaserScan"
+  gz_type_name: "gz.msgs.LaserScan"
+  direction: GZ_TO_ROS
+
+# ARM JOINT COMMANDS.
+#
+# The six gz-sim-joint-position-controller-system plugins in gazebo.xacro
+# subscribe to these as gz transport topics. Until these entries existed the
+# arm held its stow pose and NOTHING in ROS could move it - silently, with no
+# error on either side, which is this project's recurring failure mode.
+#
+# std_msgs/Float64 <-> gz.msgs.Double is the supported pair. There is no
+# std_msgs/msg/Double; that name is the natural typo here because the gz side
+# IS called Double, and the bridge would carry nothing while reporting nothing.
+# Float32 is not a supported pairing either.
+#
+# Direction is ROS_TO_GZ, so `ros2 topic info` showing zero subscribers on the
+# ROS side proves nothing - the subscriber lives in gz. Check
+# `gz topic -i -t /arm/shoulder_pan/position` as well before concluding the
+# bridge is dead.
+- ros_topic_name: "/arm/shoulder_pan/position"
+  gz_topic_name: "/arm/shoulder_pan/position"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/arm/shoulder_lift/position"
+  gz_topic_name: "/arm/shoulder_lift/position"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/arm/elbow_flex/position"
+  gz_topic_name: "/arm/elbow_flex/position"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/arm/wrist_flex/position"
+  gz_topic_name: "/arm/wrist_flex/position"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/arm/wrist_roll/position"
+  gz_topic_name: "/arm/wrist_roll/position"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/arm/gripper/position"
+  gz_topic_name: "/arm/gripper/position"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
