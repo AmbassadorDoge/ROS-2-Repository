@@ -134,6 +134,79 @@
     <xacro:arm_joint_hold joint="wrist_flex"    target="${stow_wrist_flex}"/>
     <xacro:arm_joint_hold joint="wrist_roll"    target="${stow_wrist_roll}"/>
     <xacro:arm_joint_hold joint="gripper"       target="${stow_gripper}"/>
+
+    <!-- ==================================================================
+         SENSOR POD
+         Eye-in-hand camera and ToF. Both need gz-sim-sensors-system, which is a
+         WORLD plugin and already declared in drivebase_sim's test_field.sdf - a
+         sensor with no matching world system stays silent with no error.
+         ================================================================== -->
+    <gazebo reference="pod_camera_link">
+      <sensor name="pod_camera" type="camera">
+        <always_on>1</always_on>
+        <!-- 15 Hz, not 30. The detector is the bottleneck on hardware and a
+             faster camera would only queue frames the Pi cannot process. -->
+        <update_rate>15</update_rate>
+        <topic>/pod_camera/image</topic>
+        <gz_frame_id>pod_camera_optical_frame</gz_frame_id>
+        <camera>
+          <!-- 1.15 rad ~ 66 deg horizontal. Matches a Pi Camera v3 class part;
+               keep this in step with whatever is actually bought, so the
+               intrinsics the coordinator reads from camera_info transfer. -->
+          <horizontal_fov>1.15</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.02</near>
+            <far>10.0</far>
+          </clip>
+        </camera>
+      </sensor>
+    </gazebo>
+
+    <!-- ToF simulated exactly as the ultrasonics are: Gazebo Harmonic has no
+         time-of-flight sensor type, so it is a gpu_lidar with a single ray.
+         laserscan_to_range collapses it to sensor_msgs/Range, which is what a
+         real VL53-class driver publishes directly.
+
+         ONE sample, not five: a ToF returns a single distance along its axis,
+         unlike a sonar which reports the nearest echo anywhere in a cone. -->
+    <gazebo reference="pod_tof_link">
+      <sensor name="pod_tof" type="gpu_lidar">
+        <always_on>1</always_on>
+        <update_rate>20</update_rate>
+        <visualize>${show_sensor_rays}</visualize>
+        <topic>/tof/pod/scan</topic>
+        <gz_frame_id>pod_tof_link</gz_frame_id>
+        <lidar>
+          <scan>
+            <horizontal>
+              <samples>1</samples>
+              <resolution>1</resolution>
+              <min_angle>0.0</min_angle>
+              <max_angle>0.0</max_angle>
+            </horizontal>
+            <vertical>
+              <samples>1</samples>
+              <resolution>1</resolution>
+              <min_angle>0.0</min_angle>
+              <max_angle>0.0</max_angle>
+            </vertical>
+          </scan>
+          <!-- VL53L1X-class limits. min 0.04 m is why the grasp descent must be
+               open-loop: at grab range the target is inside this. -->
+          <range>
+            <min>0.04</min>
+            <max>4.0</max>
+            <resolution>0.001</resolution>
+          </range>
+          <noise type="gaussian"><mean>0.0</mean><stddev>0.005</stddev></noise>
+        </lidar>
+      </sensor>
+    </gazebo>
   </xacro:if>
 
   <!-- ==================================================================
