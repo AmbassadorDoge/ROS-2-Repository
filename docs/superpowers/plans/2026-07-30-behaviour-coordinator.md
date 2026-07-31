@@ -73,8 +73,15 @@ reasoning.
   silent on the obvious. Do not add docstrings that restate a function name.
 - **Never hardcode a figure that can be derived.** Arm link lengths come from
   the URDF at runtime. Measured values go in a params YAML, not in source.
-- **Python style:** 4-space indent, flake8/pep257 clean (the packages declare
-  `ament_flake8` and `ament_pep257` test deps).
+- **Python style:** 4-space indent, matching the existing sources.
+  **Do not add `test_flake8.py` / `test_pep257.py` stubs.** `drivebase_sim`
+  declares `ament_flake8` and `ament_pep257` as test deps without any lint test
+  files, and that declared-but-unused pattern is this repo's convention for its
+  own packages — only `trash_vision` (another author's, from `ros2 pkg create`
+  defaults) has them. Adding the stubs would fail the build immediately on
+  ament's single-quote preference and on `D103` for every test function, and
+  `D103` cannot be satisfied without violating the "no docstrings that restate
+  a function name" rule above. Match the repo; do not chase the linter.
 - **Frames:** `pod_camera_optical_frame` follows the ROS optical convention
   (z forward, x right, y down), matching the existing `camera_optical_frame`.
 
