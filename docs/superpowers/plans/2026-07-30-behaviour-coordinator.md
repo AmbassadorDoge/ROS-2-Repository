@@ -856,7 +856,39 @@ git commit -m "Measure arm workspace and search pose in simulation"
 
 ---
 
-### Task 5b: Re-aim the sensor pod, and re-measure
+### Task 5b: Re-aim the sensor pod, and re-measure — **DONE, and it reversed**
+
+> **OUTCOME (commit `b9820a5`): the rotation prescribed below is WRONG. The pod
+> stays at `rpy 0 0 0`.**
+>
+> Aiming the pod along the gripper axis makes the ToF read a constant
+> **0.058 m** at every pose — it is looking lengthwise down the gripper body.
+> `arm_gripper_link`'s origin is 0.0619 m from the pod along −Y, which is that
+> reading almost exactly. The decisive check was the sky test inverted: aimed
+> at open sky it returned **0.057 m instead of 4.000 m**. The cause is
+> positional, not angular — the pod sits at the *root* of a 160 mm gripper, so
+> any aim at the grasp point looks down its length. Moving the mount outboard
+> was tried and failed too.
+>
+> **Task 5's "no arm pose sees the grasp zone" was also wrong.** It drove 210
+> poses but never paired strongly negative `wrist_flex` with positive
+> `shoulder_lift`. That corner works:
+>
+> | Pose | pan 0, lift 0.9, elbow 0.46, wrist_flex −1.40 |
+> |---|---|
+> | ToF measured | **0.2716 m** (predicted from tf alone: 0.2715, +0.02%) |
+> | Beam lands at | **x = 0.392 m** — mid grasp window (0.287–0.481) |
+>
+> Search pose unchanged: lift −1.4, elbow 0.0, wrist_flex 0.4.
+>
+> **Known limitation:** the confirm pose does not hold the gripper over the
+> target (gripper x = 0.572, beam x = 0.392). The 87° offset makes seeing the
+> grasp zone and holding the jaws above it mutually exclusive on this arm.
+> `CONFIRMING` ranges and images the target; the descent stays open-loop, which
+> is what spec §6 already required.
+>
+> The steps below are kept as the record of what was tried and why it failed.
+> Do not re-apply Step 1.
 
 Task 5 found that the pod's optical/ranging axis is **87.2°** away from the
 gripper's approach direction. `arm_wrist_link`'s +X does not point at the

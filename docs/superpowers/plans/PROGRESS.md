@@ -1,7 +1,7 @@
 # Behaviour coordinator — progress
 
 Resume point for `2026-07-30-behaviour-coordinator.md`.
-Last updated 2026-07-30, paused mid-Phase 1.
+Last updated 2026-07-30. **Phase 1 complete. Next: Phase 2 (Tasks 6-10).**
 
 Branch: **`feature/behaviour-coordinator`** (nothing pushed; `master` untouched)
 
@@ -17,16 +17,36 @@ Branch: **`feature/behaviour-coordinator`** (nothing pushed; `master` untouched)
 | **1** Sensor pod frames | `408c840` | 27 links / 26 joints, +3/+3 over baseline |
 | **2** Camera + ToF sensors | `e1f3d2b` | Both publish real data under llvmpipe |
 | **3** Bridge camera/ToF/arm | `fecfdab` | **Arm moves from ROS** |
+| **4** Litter objects | `84ce48f` | 3 non-static models, poses stable |
+| **5** Measure arm workspace | `6baed36` | `docs/arm_workspace.md`, 210 poses |
+| **5b** Pod aim investigation | `b9820a5` | Pod stays `rpy 0 0 0`; confirm pose found |
 
-Plan corrections found by executing it: `50454aa`, `b696145`, `20936ee`.
+Plan corrections found by executing it: `50454aa`, `b696145`, `20936ee`,
+`ca92441`, `2dbf7c3`.
 
 ## Next
 
-**Task 4: litter objects in `test_field.sdf`.** Then 5 (measure arm
-workspace), and Phase 2 (Tasks 6-10, pure logic — no simulator needed).
+**Phase 2: Tasks 6-10** — `drivebase_msgs`, detection adapter, localisation,
+URDF-derived kinematics, closed-form IK. **All pure logic: no simulator, no
+GPU, fast to test.** Run with `./scripts/dev.sh python3 -m pytest ...`.
 
 Execution mode agreed: **subagent-driven**, one agent per task, reviewed
 between tasks.
+
+## Measured figures — use these, do not re-derive
+
+| Parameter | Value | Source |
+|---|---|---|
+| `grasp_range` | **0.397 m** | lowest gripper pose, z = 0.0354 m |
+| `grasp_min` | **0.287 m** | nearest x with gripper under 0.060 m |
+| `grasp_max` | **0.481 m** | furthest x with gripper under 0.060 m |
+| Search pose | pan 0, lift **−1.4**, elbow **0.0**, wrist_flex **0.4** | ToF 1.08–1.14 m of ground; gripper tucked to x = 0.267 m |
+| Confirm pose | pan 0, lift **0.9**, elbow **0.46**, wrist_flex **−1.40** | ToF 0.2716 m, beam lands x = 0.392 m, mid grasp window |
+| `wrist_roll` limit | **not measured** | harness routing; no simulator analogue. The plan's ±1.0 rad is still a guess and is *not* endorsed. |
+| Camera intrinsics | fx = fy = 493.7925, cx = 320, cy = 240, 640×480 | `camera_info`, = 320/tan(1.15/2) |
+
+Reach reproduces `STATUS.md`: 220 mm below mount (vs 219), gripper 40.1 mm above
+ground (vs 41). The sensor pod did not disturb the arm's kinematics.
 
 ---
 
@@ -75,14 +95,38 @@ other five joints holding stow. This was the gate for all of Phases 2-4.
 3. **Each `scripts/dev.sh` call is a fresh container.** Background processes do
    not survive between calls; launch-then-query must be one invocation.
 
-### Open item for Task 5
+4. **`/tof/pod` is BEST_EFFORT** (`qos_profile_sensor_data`). A **RELIABLE**
+   subscriber gets one warning and then silence. An earlier version of this
+   file said the opposite; it cost an agent a whole sweep.
+5. **The arm droops up to 0.20 rad** from its commanded pose when extended
+   (worst at lift 0.8 / elbow −1.2; the deepest grasp pose converges within
+   0.010 rad). Always measure achieved tf — never assume commanded ==
+   achieved. **Task 10's IK must not assume the arm reaches what it is told.**
+   Whether this is a torque limit or a starved controller under llvmpipe is
+   not established.
+6. **`/joint_states` uses `arm_`-prefixed names**, not the command-topic names.
 
-**The ToF can see the arm's own gripper** — 0.062-0.071 m at the stow pose,
-which is not ground. The pod points along the wrist axis with the jaws in front
-of it. Any search-pose candidate reading under ~0.3 m is looking at the robot.
-Reject those; if *every* candidate is occluded, the pod's mounting `rpy` needs
-a pitch offset. A ToF that sees the gripper during `CONFIRMING` would confirm a
-grasp on the robot's own hand.
+### Settled: the pod's aim
+
+Investigated at length in Task 5b; **do not reopen without reading
+`docs/arm_workspace.md` §3.**
+
+The pod's axis is 87.2° off the gripper's approach direction, and that is
+**correct as mounted**. Aiming it at the gripper makes the ToF read a constant
+0.058 m — the casting of `arm_gripper_link`, which sits 0.0619 m away along −Y.
+The pod is at the *root* of a 160 mm gripper, so any aim at the grasp point
+looks down its length. Clearing the castings by 60 mm costs 80 mm of
+displacement off the grasp axis; mounting outboard was tried and failed too.
+
+The grasp window *is* viewable — from pan 0, lift 0.9, elbow 0.46,
+wrist_flex −1.40. Task 5's claim that no pose could see it was wrong; it never
+paired strongly negative `wrist_flex` with positive `shoulder_lift`.
+
+**Consequence for the coordinator:** at the confirm pose the gripper is *not*
+over the target (gripper x = 0.572, beam x = 0.392). Seeing the grasp zone and
+holding the jaws above it are mutually exclusive on this arm. `CONFIRMING`
+ranges and images the target from where it can see; the descent is open-loop
+from the stored point, exactly as spec §6 requires.
 
 ### Cosmetic, deliberately not fixed
 
