@@ -80,12 +80,23 @@ def track_factors(rows):
             current = None
     out = []
     for leg in factors:
-        first, last = leg["rows"][0], leg["rows"][-1]
-        true_delta = abs(angle_diff(last["true_yaw"], first["true_yaw"]))
-        wheel_delta = abs(angle_diff(last["odom_yaw"], first["odom_yaw"]))
-        # Skip turns too small to divide meaningfully, and any turn near pi where
-        # the wrapped difference is ambiguous.
-        if true_delta < 0.3 or true_delta > 2.8 or wheel_delta > 2.8:
+        rows_ = leg["rows"]
+        if len(rows_) < 3:
+            continue
+        # Accumulate the wrapped step-to-step difference rather than diffing the
+        # endpoints. Endpoint diffing cannot represent a rotation past pi, which
+        # forced a `wheel_delta > 2.8` guard to reject the ambiguous cases — and
+        # once the wheel-slip model landed, the over-report pushed every single
+        # turn past that guard and the analysis silently reported "no usable
+        # turns" for a run where all five turns were clean. Summing steps has no
+        # such ceiling.
+        true_delta = wheel_delta = 0.0
+        for a, b in zip(rows_, rows_[1:]):
+            true_delta += angle_diff(b["true_yaw"], a["true_yaw"])
+            wheel_delta += angle_diff(b["odom_yaw"], a["odom_yaw"])
+        true_delta, wheel_delta = abs(true_delta), abs(wheel_delta)
+        # Still skip turns too small to divide meaningfully.
+        if true_delta < 0.3:
             continue
         out.append(wheel_delta / true_delta)
     return out

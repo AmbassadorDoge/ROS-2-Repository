@@ -58,11 +58,17 @@ def generate_launch_description() -> LaunchDescription:
     use_arm = LaunchConfiguration("arm")
     wheel_mu1 = LaunchConfiguration("wheel_mu1")
     wheel_mu2 = LaunchConfiguration("wheel_mu2")
+    wheel_slip = LaunchConfiguration("wheel_slip")
+    slip_lateral = LaunchConfiguration("slip_lateral")
+    slip_longitudinal = LaunchConfiguration("slip_longitudinal")
     with_litter_detector = LaunchConfiguration("litter_detector")
 
     robot_description = ParameterValue(
         Command(["xacro ", xacro_file, " use_sim:=true", " use_arm:=", use_arm,
-                  " wheel_mu1:=", wheel_mu1, " wheel_mu2:=", wheel_mu2]),
+                  " wheel_mu1:=", wheel_mu1, " wheel_mu2:=", wheel_mu2,
+                  " wheel_slip:=", wheel_slip,
+                  " slip_lateral:=", slip_lateral,
+                  " slip_longitudinal:=", slip_longitudinal]),
         value_type=str,
     )
 
@@ -121,6 +127,24 @@ def generate_launch_description() -> LaunchDescription:
             description="Lateral wheel friction. Was the prime suspect for the "
                         "robot being unable to rotate in place; see wheel_mu1 "
                         "for why sweeping it had no effect.",
+        ),
+        DeclareLaunchArgument(
+            "wheel_slip", default_value="true",
+            description="Enable gz-sim-wheel-slip-system. This is where the "
+                        "lateral/longitudinal anisotropy actually comes from, "
+                        "since dartsim discards the mu1/mu2 split. Set false "
+                        "to reproduce the old contact behaviour.",
+        ),
+        DeclareLaunchArgument(
+            "slip_lateral", default_value="1.0",
+            description="Lateral slip compliance, (m/s)/N, divided by "
+                        "wheel_normal_force internally. Non-zero is what lets "
+                        "the tyres scrub during a point turn.",
+        ),
+        DeclareLaunchArgument(
+            "slip_longitudinal", default_value="0.0",
+            description="Longitudinal slip compliance. Near zero keeps the "
+                        "wheels gripping for drive.",
         ),
         DeclareLaunchArgument(
             "litter_detector", default_value="true",

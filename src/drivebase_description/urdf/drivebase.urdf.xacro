@@ -25,6 +25,17 @@
   <xacro:arg name="wheel_mu1" default="1.0"/>
   <xacro:arg name="wheel_mu2" default="0.6"/>
 
+  <!-- Wheel slip model. dartsim takes a single friction coefficient and
+       discards the mu1/mu2 split, so anisotropy has to come from somewhere
+       else; gz-sim-wheel-slip-system is where. Compliance is (m/s)/N and is
+       divided by wheel_normal_force internally, so these are per-unit-force
+       figures. Lateral non-zero lets the tyres scrub during a point turn;
+       longitudinal near zero keeps them gripping for drive. Exposed so the
+       contact model stays sweepable the way wheel_mu1 is. -->
+  <xacro:arg name="wheel_slip" default="true"/>
+  <xacro:arg name="slip_lateral" default="1.0"/>
+  <xacro:arg name="slip_longitudinal" default="0.0"/>
+
   <!-- Draw the ultrasonic cones in the Gazebo GUI. On by default: seeing which
        cone caught an obstacle is most of the value of running the sim at all. -->
   <xacro:arg name="show_sensor_rays" default="true"/>

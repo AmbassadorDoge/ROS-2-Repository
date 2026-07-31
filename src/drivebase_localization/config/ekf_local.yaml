@@ -26,16 +26,23 @@
 # consistently under-turn. A second run that had translated first showed 1.94x,
 # so the factor is state-dependent, not a constant to hard-code.
 #
-# Since measured properly over 6 clean turns with the scripted_drive rig: the
-# ratio is 1.742x, stdev 0.025, and stable across lateral-friction values from
-# 0.15 to 0.6 - it is kinematic, not frictional. The 1.53x and 1.94x figures above
-# were single samples from an unreliable harness; 1.742 supersedes them.
+# Measured over 10 clean turns with the scripted_drive rig, after the wheel-slip
+# fix of 2026-07-31: the ratio is 2.112x, stdev 0.008. The 1.53x and 1.94x
+# figures above were single samples from an unreliable harness, and the 1.742x
+# that superseded them was measured while dartsim was discarding the lateral
+# friction value entirely - the body slid instead of rotating. Use 2.112.
 #
-# Also measured: a 90 deg turn costs ~0.35 m of position error, while 20 m of
-# straight driving costs essentially nothing. Turns are the entire error budget.
+# It is NOT "kinematic, not frictional" as previously recorded. That conclusion
+# came from sweeping a parameter the physics engine ignored. The factor moved
+# 21% the moment the contact model actually changed, so treat it as a property
+# of the tyre model and re-measure whenever that model moves.
+#
+# Also re-measured: a full square5 - 20 m, 453 deg, five turns - drifts 0.035 m
+# in this filter. The old "0.35 m per 90 deg turn" was measuring the contact bug.
 #
 # CALIBRATION ITEM: this still has to be measured on the real robot. The simulated
-# IMU has near-perfect heading, so 0.35 m per turn is a LOWER BOUND.
+# IMU has near-perfect heading, so the drift figure remains a LOWER BOUND, and
+# slip_lateral 1.0 has no hardware justification behind it yet.
 # See docs/localization_accuracy.md.
 
 ekf_local:

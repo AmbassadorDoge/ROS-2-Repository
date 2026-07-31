@@ -58,7 +58,13 @@ long-range drift; a camera handles litter detection and final approach.
 
 ## One thing to know before building on this
 
-**Turns, not distance, dominate position error** — roughly 0.35 m per 90°, while
-20 m of straight driving costs essentially nothing. Two turns put the base ~0.7 m
-off, which is far larger than a piece of litter. The arm has to be aimed by the
-camera closing its own loop, never by driving to a coordinate.
+**The base cannot be trusted to position the arm** — the arm has to be aimed by
+the camera closing its own loop, never by driving to a coordinate.
+
+Not because of odometry drift, as it turns out. An earlier version of this note
+quoted ~0.35 m of error per 90° turn; that figure was measuring a Gazebo contact
+bug in which the body slid instead of rotating, and once the wheel-slip model
+was fitted a full five-turn, 20 m square came in at 0.035 m total. The
+conclusion stands on firmer ground anyway: GPS bounds error at 1.4–5.6 m, the
+simulated IMU is better than anything you can buy, and no contact model here has
+been validated against hardware. Litter is far smaller than any of those.

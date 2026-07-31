@@ -239,6 +239,46 @@
   <xacro:wheel_surface link="rear_right_wheel_link"/>
 
   <!-- ==================================================================
+       WHEEL SLIP
+       The mu1/mu2 pair above maps to ODE's friction element. gz-sim's default
+       physics engine is dartsim, which takes ONE friction coefficient and
+       silently discards the lateral value on load. That is why sweeping
+       wheel_mu2 across 0.6/0.3/0.15 changed nothing: the parameter had no
+       effect to have, and the robot ran effectively isotropic at mu1 against
+       a 0.9 ground plane — the "isotropic high friction makes a skid-steer
+       refuse to rotate" case the comment above warns about.
+
+       This plugin is where the anisotropy actually comes from. It models slip
+       properly rather than blunting friction globally, which is what lowering
+       mu1 does — and lowering mu1 changes how much the tyres scrub, which
+       invalidates every measured figure in docs/localization_accuracy.md.
+
+       wheel_normal_force is the static load per wheel: 10.342 kg total mass
+       (summed from the URDF) x 9.81 / 4 = 25.4 N.
+       ================================================================== -->
+  <xacro:property name="wheel_slip" value="$(arg wheel_slip)"/>
+
+  <xacro:if value="${wheel_slip}">
+    <gazebo>
+      <plugin filename="gz-sim-wheel-slip-system"
+              name="gz::sim::systems::WheelSlip">
+        <xacro:macro name="slip_wheel" params="link">
+          <wheel link_name="${link}">
+            <slip_compliance_lateral>$(arg slip_lateral)</slip_compliance_lateral>
+            <slip_compliance_longitudinal>$(arg slip_longitudinal)</slip_compliance_longitudinal>
+            <wheel_normal_force>25.4</wheel_normal_force>
+            <wheel_radius>${wheel_radius}</wheel_radius>
+          </wheel>
+        </xacro:macro>
+        <xacro:slip_wheel link="front_left_wheel_link"/>
+        <xacro:slip_wheel link="front_right_wheel_link"/>
+        <xacro:slip_wheel link="rear_left_wheel_link"/>
+        <xacro:slip_wheel link="rear_right_wheel_link"/>
+      </plugin>
+    </gazebo>
+  </xacro:if>
+
+  <!-- ==================================================================
        IMU
        Noise set for a consumer MEMS part (BNO055 / ICM-20948 class). Note the
        sim IMU reports absolute orientation, which a bare 6-DOF MPU6050 cannot

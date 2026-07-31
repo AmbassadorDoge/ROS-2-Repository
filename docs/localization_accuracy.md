@@ -23,6 +23,25 @@ exactly one successful 90° rotation, so:
 > **A 90° turn costs roughly 0.35 m of position error. Twenty metres of straight
 > driving costs essentially nothing.**
 
+> ### ⚠ SUPERSEDED 2026-07-31 — this measured the contact bug, not skid steer
+>
+> Every run above performed exactly one rotation because of the rotation bug,
+> and under that broken contact model a "turn" was substantially the body
+> *sliding* rather than rotating — measured elsewhere at 0.156 m of lateral
+> slide during a single stalled turn. That slide is position error the filter
+> cannot see, and it is most of the 0.35 m.
+>
+> With `gz-sim-wheel-slip-system` fitted (see the rotation-bug section), a full
+> `square5` completes all four corners plus the prologue: **20.3 m driven, 453°
+> rotated, local EKF error 0.035 m** — median over 2 runs. That is roughly
+> **0.007 m per 90°**, not 0.35 m: a factor of ~50.
+>
+> **Do not read that as "turns are now free."** Limitation 1 below is unchanged
+> and still binding — the simulated IMU has near-perfect heading, so this is a
+> lower bound and real drift will be worse. What changed is that the old figure
+> is not a skid-steer property at all; it was an artifact of a contact solver
+> that refused to rotate the body.
+
 That resolves the contradiction that prompted this work — straight-line runs
 measuring ~0.5% error while a Nav2 run with two turns measured ~9% per metre. It
 was never about distance.
@@ -36,9 +55,12 @@ of *a* turn, not as a rate to extrapolate.
 - Nav2's controller is configured to prefer arcs over point turns
   (`rotate_to_heading_min_angle: 0.90` in `drivebase_navigation`). That was
   justified on current draw and CPU; this makes it a *localization* argument too.
-- The base cannot be trusted to position the arm. A pickup approach involving a
-  couple of turns lands ~0.7 m out, and litter is much smaller than that. Final
-  approach has to close the loop on the camera.
+- The base cannot be trusted to position the arm. **This conclusion survives the
+  correction above, but it no longer rests on the 0.35 m figure.** It now rests
+  on: GPS-corrected global error of 1.4–5.6 m, an IMU in simulation that is
+  better than anything you can buy, and the fact that no contact model here has
+  been validated against hardware. Litter is far smaller than any of those
+  uncertainties. Final approach still has to close the loop on the camera.
 
 ---
 
@@ -47,22 +69,31 @@ of *a* turn, not as a rate to extrapolate.
 Ratio of yaw change reported by raw wheel odometry to true yaw change, over
 6 clean turns:
 
-| | |
-|---|---|
-| median | **1.742** |
-| mean | 1.749 |
-| range | 1.717 – 1.779 |
-| stdev | 0.025 |
+| | Old contact model (n=6) | **With wheel slip (n=10)** |
+|---|---|---|
+| median | 1.742 | **2.112** |
+| mean | 1.749 | 2.108 |
+| range | 1.717 – 1.779 | 2.098 – 2.116 |
+| stdev | 0.025 | **0.008** |
 
-Tight, and stable across lateral-friction values from 0.15 to 0.6 — as expected,
-since it is kinematic rather than frictional. `DiffDrive` derives odometry from
-ideal two-wheel kinematics while the real robot loses rotation to scrub.
+**Use 2.11.** The 1.742 column is kept only so the change is auditable.
 
-Earlier ad-hoc measurements of 1.53× and 1.94× bracket this but were single
-samples from an unreliable harness. Use 1.74.
+The factor went *up* because the wheels now scrub freely instead of the whole
+body sliding: more wheel rotation per unit of body rotation is exactly what a
+working slip model produces. The new figure is also three times tighter, which
+is what you would expect once the contact solver stops fighting the turn.
+
+This supersedes the claim that the factor is "stable across lateral-friction
+values from 0.15 to 0.6." It was stable across those values because **dartsim
+was discarding them entirely** — see the rotation-bug section. It is not
+friction-independent; it moved 21% the moment the contact model actually
+changed.
+
+Earlier ad-hoc measurements of 1.53× and 1.94× were single samples from an
+unreliable harness and are superseded twice over.
 
 To make wheel odometry self-consistent you would set an effective
-`wheel_separation` of **0.749 m** against a physical track of 0.430 m. It is
+`wheel_separation` of **0.908 m** against a physical track of 0.430 m. It is
 deliberately *not* set that way in `gazebo.xacro`: the sim should reproduce the
 same bias the real robot has, which is exactly what forces the EKF to take yaw
 from the IMU rather than the wheels.
@@ -95,10 +126,26 @@ That decision has to be made on hardware.
 Corollary worth stating plainly: **do not use these numbers to justify skipping
 the 9-DOF IMU.** They assume something better than a BNO055.
 
-**2. The simulated robot cannot rotate in place more than once per run.** The
-first rotation of any run succeeds; every subsequent one leaves the body
-stationary while the wheel joints spin. Measured directly — during a failed turn
-`odom_yaw` advanced 279° while `true_yaw` moved 0.0°.
+**2. ~~The simulated robot cannot rotate in place more than once per run.~~
+FIXED 2026-07-31.** The body used to stay stationary while the wheel joints
+spun — during a failed turn `odom_yaw` advanced 279° while `true_yaw` moved
+0.0°.
+
+Cause: gz-sim's default physics engine is **dartsim**, which takes a single
+friction coefficient and does not implement the anisotropic `mu1`/`mu2` split.
+The pair in `gazebo.xacro` maps to ODE's friction element, so the lateral value
+was discarded on load with no warning — the robot ran effectively isotropic at
+`mu1` 1.0 against a 0.9 ground plane, which is the case that makes a skid-steer
+refuse to rotate.
+
+Fix: `gz-sim-wheel-slip-system` (`wheel_slip:=true`, default on), which models
+slip properly rather than blunting friction globally the way lowering `mu1`
+does. `square5` now completes all four corners over 20.3 m and 453°, with 3–5 cm
+of slide per turn against the whole body sliding before.
+
+**Every figure on this page was re-measured against it.** That was not optional:
+the effective-track factor moved from 1.742 to 2.112, and the turn-cost figure
+turned out to be measuring the bug itself.
 
 Ruled out by experiment:
 

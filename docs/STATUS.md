@@ -68,7 +68,8 @@ ros2 launch drivebase_navigation navigation.launch.py use_sim_time:=true
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 ```
 
-`sim.launch.py` flags: `headless`, `rviz`, `ekf`, `gps`, `arm`, `wheel_mu2`.
+`sim.launch.py` flags: `headless`, `rviz`, `ekf`, `gps`, `arm`, `litter_detector`,
+`wheel_mu1`, `wheel_mu2`, `wheel_slip`, `slip_lateral`, `slip_longitudinal`.
 
 Needs a real GPU. Software rendering works (`LIBGL_ALWAYS_SOFTWARE=1`) but runs
 well under real time and starves the control loops.
@@ -79,109 +80,88 @@ well under real time and starves the control loops.
 
 | Quantity | Value | Source |
 |---|---|---|
-| Turn cost, local EKF | **~0.35 m per 90°** | `localization_accuracy.md` |
+| Turn cost, local EKF | **~0.007 m per 90°** (was 0.35 — that measured the contact bug) | `localization_accuracy.md` |
 | Straight-line cost | negligible over 20 m | same |
-| Effective-track factor | **1.742×** (stdev 0.025, n=6) | same |
+| Effective-track factor | **2.112×** (stdev 0.008, n=10) | same |
 | Global (GPS) error | 1.4–5.6 m, bounded | same |
 | Ultrasonic vs world geometry | 2.732 m vs 2.75 m predicted | verified in sim |
 | Arm reach below its mount | **219 mm** | measured in sim |
 | Gripper height at full extension | **41 mm** above ground | measured in sim |
 | Motion power draw | ~62 W pavement, ~105 W grass | `power_budget.md` |
 
-**The single most important consequence:** turns, not distance, dominate
-position error, and a couple of turns puts the base ~0.7 m off. Litter is far
-smaller than that, so **the arm must be aimed by the camera, never by driving to
-a coordinate.** The existing detector's LEFT/RIGHT/CENTER output is the right
-shape for that.
+**The single most important consequence:** **the arm must be aimed by the
+camera, never by driving to a coordinate.** The existing detector's
+LEFT/RIGHT/CENTER output is the right shape for that.
+
+The reasoning behind that changed on 2026-07-31 even though the conclusion did
+not. It used to rest on turns costing ~0.35 m each; that figure was measuring
+the contact bug below, and with the bug fixed a five-turn 20 m square drifts
+0.035 m. It now rests on GPS error of 1.4–5.6 m, a simulated IMU better than any
+real part, and no contact model here having been checked against hardware.
+Litter is far smaller than any of those.
 
 ---
 
 ## Known issues
 
-### 1. Simulated robot cannot rotate in place more than once per run
+### 1. ~~Simulated robot cannot rotate in place more than once per run~~ — FIXED 2026-07-31
 
-**Simulation artifact only. Not a prediction about the hardware.**
+The body used to stay stationary while the wheel joints kept spinning (measured:
+`odom_yaw` +279°, `true_yaw` 0.0°). Ruled out along the way: commanded angular
+velocity, the arm, `wheel_mu2`, translation between turns, and software
+rendering.
 
-First rotation of a run succeeds; every later one leaves the body stationary
-while the wheel joints keep spinning (measured: `odom_yaw` +279°, `true_yaw`
-0.0°). The command path, bridge, DiffDrive plugin and joint actuation all work —
-it is the tyre/ground contact solver failing to convert wheel spin into body
-rotation.
+**Cause.** gz-sim's default physics engine is **dartsim**, which takes a single
+friction coefficient and does not implement the anisotropic `mu1`/`mu2` split.
+The `<mu1>`/`<mu2>` pair in `gazebo.xacro` maps to ODE's friction element, so
+the lateral value was discarded on load with no warning. That is why sweeping
+`wheel_mu2` across 0.6/0.3/0.15 changed nothing — the parameter had no effect to
+have. The robot ran effectively isotropic at `mu1` 1.0 against a 0.9 ground
+plane, the exact case the xacro comment warns makes a skid-steer refuse to
+rotate.
 
-Ruled out: commanded angular velocity (0.5/0.8/1.2 rad/s), the arm
-(`arm:=false` fails too), lateral friction (`wheel_mu2` 0.6/0.3/0.15), and
-translation between turns.
+**Fix: `gz-sim-wheel-slip-system`** — candidate 1, and it was the right call.
+It supplies the anisotropy dartsim throws away, modelling slip properly instead
+of blunting friction globally the way lowering `mu1` does. On by default
+(`wheel_slip:=true`), with `slip_lateral` 1.0 and `slip_longitudinal` 0.0
+exposed and sweepable. Lateral compliance is what lets the tyres scrub through a
+point turn; longitudinal near zero keeps them gripping for drive.
 
-**Also ruled out: software rendering.** Reproduced 2026-07-30 on an AMD
-Radeon 680M at real-time factor 0.999, `square5`, in `runs/gpu_square5.csv`.
-The prologue `orient` turn succeeded; the first counted `turn` leg then
-stalled and the rig aborted it after 12 s. Over that leg `true_yaw` moved
-1.57057 → 1.57080 rad (0.013°) while `odom_yaw` moved 0.403 rad (23°), and
-`true_y` slid 4.6416 → 4.4860 m. The body slides instead of rotating. This is
-contact solver behaviour, not a starved one.
+Results, `mu1` left at 1.0 throughout:
 
-**`twoturns` narrows it further** (`runs/gpu_twoturns.csv`): two rotations
-back to back with no translation between them, and the second still stalls.
-So it is "only the first rotation of a run ever works", not "driving forward
-breaks subsequent rotation".
+| | Before | After |
+|---|---|---|
+| `twoturns` | aborts on the first turn | completes, 181°, **0.10 m** scrub |
+| `square5` | aborts at the first corner | completes, 20.3 m, 453° |
+| Effective-track factor | 1.742× (stdev 0.025, n=6) | **2.112×** (stdev 0.008, n=10) |
+| Local EKF error, full square | not measurable | **0.035 m** |
 
-#### Cause found 2026-07-30: `wheel_mu2` was never being read
+For comparison the `wheel_mu1:=0.35` workaround got `twoturns` through at 0.42 m
+of scrub; the slip model does it at 0.10 m without touching `mu1`.
 
-gz-sim's default physics engine is **dartsim**, which takes a single friction
-coefficient and does not implement the anisotropic `mu1`/`mu2` split. The
-`<mu1>`/`<mu2>` pair in `gazebo.xacro` maps to ODE's friction element, so the
-lateral value is silently discarded. **That is why sweeping `wheel_mu2` across
-0.6/0.3/0.15 changed nothing — the parameter had no effect to have.** The
-robot was running effectively isotropic at `mu1` 1.0 against a ground plane at
-0.9, which is the "isotropic high friction makes a skid-steer refuse to
-rotate" case the xacro comment itself warns about.
+**Every figure in `localization_accuracy.md` was re-measured against this**, and
+two of them moved. The effective-track factor went *up* 21%, because the wheels
+now scrub freely rather than the body sliding. And the turn-cost figure turned
+out to be measuring the bug: what was recorded as 0.35 m of error per 90° was
+largely the body sliding 0.156 m during a turn it never completed.
 
-Confirmed by lowering the coefficient that *is* read. At `wheel_mu1:=0.35`
-`wheel_mu2:=0.35`, `twoturns` completes (182° rotated, scrub down from 1.65 m
-to 0.42 m) and a full `square5` completes all four corners — 21.24 m, 457°
-rotated, `runs/gpu_square5_mu035.csv`.
+That also retires the old claim that the track factor was "stable across
+lateral-friction values from 0.15 to 0.6." It was stable because those values
+were being discarded.
 
-**This is a diagnosis, not an adopted fix.** The URDF default is deliberately
-left at `mu1` 1.0, because 0.35 changes how much the tyres scrub and so
-invalidates every measured figure in `localization_accuracy.md`. Same run
-measured the wheel-odometry over-report at **1.594×**, against the documented
-1.742× at `mu1` 1.0 — the figures move with friction. `sim.launch.py` now
-exposes `wheel_mu1` so this is reproducible; picking a value means
-re-measuring the drift figures against it, and 0.35 has no hardware
-justification behind it.
+`runs/slip_square5.csv` and `runs/slip_square5_b.csv` are the two runs behind
+the numbers above.
 
-Fix candidates, cheapest first. Candidate 1 remains the right one — it models
-slip properly rather than blunting friction globally, which is what lowering
-`mu1` does:
+**Also fixed: `scripts/analyse_drift.py` was silently discarding every turn.**
+It diffed yaw endpoints, which cannot represent a rotation past π, so it carried
+a `wheel_delta > 2.8` guard — and the new over-report pushed all ten turns past
+it. It reported "no usable turns found" for a run where every turn was clean. It
+now accumulates the wrapped step-to-step difference, which has no such ceiling.
 
-1. **`gz-sim-wheel-slip-system`** — Gazebo's own slip model, with
-   `slip_compliance_lateral` / `slip_compliance_longitudinal`. Built for exactly
-   this. Try first.
-2. **Copy Clearpath's Husky** — the canonical 4-wheel skid-steer Gazebo model,
-   public URDF, friction and contact parameters already tuned by people who hit
-   this problem. Fastest path to something that works.
-3. **Contact tuning** — `<kp>`, `<kd>`, `<maxVel>`, `<minDepth>` on the wheel
-   surfaces plus solver iterations. Fiddly but standard for skid steer.
-4. **`ros2_control` + `gz_ros2_control` with effort-limited joints** — the real
-   fix. `DiffDrive` commands joint velocity with unlimited torque, so contacts
-   simply slip and friction force is independent of commanded speed, which is why
-   raising angular velocity changed nothing. Effort limits also match how the
-   real robot works (Pico PID → motor torque), so this is needed eventually
-   regardless.
-
-   **Substantially de-risked 2026-07-31.** `gz_ros2_control` is now in the dev
-   image and proven to load under this Jazzy/Harmonic pairing — it runs
-   `controller_manager` inside the Gazebo process for the arm. What is left is
-   a second `<ros2_control>` system over the wheels with *velocity* interfaces
-   and effort limits, plus `diff_drive_controller` replacing the gz DiffDrive
-   plugin. That is now config work rather than a stack-integration gamble,
-   which moves this from "most expensive candidate" to a serious contender
-   against candidate 1.
-
-**Blocks:** multi-turn drift measurement, and tuning any rotation-heavy Nav2
-behaviour (spin recovery, `rotate_to_heading`). **Does not affect:** geometry,
-sensor models, straight-line results, the 0.35 m/turn figure (measured on turns
-that did work), or Nav2 obstacle avoidance (RPP arcs rather than point-turns).
+**Still not validated against hardware.** `slip_lateral` 1.0 has no more
+physical justification behind it than `mu1` 0.35 did; it is a value that makes
+the simulation behave like a skid-steer instead of a sledge. Re-measure once
+there are real tyres on real ground.
 
 ### 2. Nav2 stalled ~30 s in one run of two
 
@@ -210,7 +190,9 @@ else clones.
   `odom` → `base_footprint`. `drivebase_navigation` publishes none, so each has
   exactly one publisher.
 - **Yaw comes from the IMU, never the wheels.** Skid steer rotates by scrubbing;
-  wheel yaw is biased, not just noisy. Measured 1.742× over-report.
+  wheel yaw is biased, not just noisy. Measured 2.112× over-report — and that
+  figure moved 21% when the contact model was fixed, which is itself the
+  argument: it is a property of the tyre model, not a constant to trust.
 - **Arm collision geometry is boxes, not meshes.** 0.5–2.6 MB STLs would make
   Gazebo compute mesh-mesh contacts every step.
 - **Meshes are vendored, not fetched at build time.** This has to still build at
