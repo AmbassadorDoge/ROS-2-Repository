@@ -5,7 +5,9 @@ and typical-part values, not measurements — the robot is not assembled yet. Ev
 number here should be replaced with a measured value once the INA226 monitor is
 in place, and this document updated.
 
-Nominal system voltage: **12 V**.
+Nominal voltages, after the 2026-07-31 pack decision (§2): motion pack
+**18–20 V** (power tool battery), compute pack **5 V** (USB-C PD). Wattages
+below are unchanged by that decision — only the currents they imply are.
 
 ---
 
@@ -46,6 +48,35 @@ Two isolated packs, so the budget is split by which pack carries the load.
 a real constraint, not for battery life. Efficiency effort belongs in gearing,
 tire rolling resistance, and driving policy.
 
+### Currents
+
+Derived from the wattages above, at 18 V — the low end of the tool pack's
+range, so these are the conservative (highest-current) figures.
+
+| Scenario | Power | Current |
+|---|---|---|
+| Parked, arm holding | ~11 W | 0.6 A |
+| Cruising, pavement | ~83 W | 4.6 A |
+| Cruising, grass or incline | ~156 W | 8.7 A |
+| Stopped, arm executing pickup | ~40 W | 2.2 A |
+| Mission average, pavement | ~62 W | 3.4 A |
+| Mission average, grass | ~105 W | 5.8 A |
+| **Four wheels stalled** | — | **~8 A** |
+
+Compute pack at 5 V: **1.1 A** idle, **2.8 A** active. Note that is well under
+5 A — the 5 V/5 A supply requirement is about the Pi 5 only lifting its 600 mA
+peripheral cap when it negotiates 5 A, not about total draw.
+
+**In-place rotation on grass is the peak-current maneuver** (§5), approaching
+stall. Size fuses and wire against the ~8 A stall figure, not the 8.7 A cruise
+one — they happen to be close here, which is itself a consequence of moving to
+24 V motors.
+
+**The 40 A figure that drove the old BMS requirement was never the load.** It
+is what two MDD10A boards could demand at their rating. Four motors physically
+cannot pull it. That is why a tool pack, built for 40–60 A tool loads, clears
+this requirement without being shopped for.
+
 ---
 
 ## 2. Duty-cycle averages and pack sizing
@@ -57,21 +88,34 @@ Assumed mission profile: **60% driving / 25% stopped-and-picking / 15% idle.**
 | Pavement | ~62 W | ~62 Wh |
 | Grass / incline | ~105 W | ~105 Wh |
 
-### Motion pack — LiFePO₄ 12.8 V / 12 Ah
+### Motion pack — power tool battery, 18–20 V / 5 Ah
 
-154 Wh nominal, ~123 Wh usable at 80% depth of discharge, ~1.6 kg, $80–110.
-Runtime: **~2 h on pavement, ~1.2 h on grass.** Comfortable margin for a
-one-hour field session with re-runs.
+**Decided 2026-07-31.** DeWalt 20 V or Makita 18 V with a screw-terminal
+adapter plate. ~90 Wh nominal, ~72 Wh usable at 80% depth of discharge.
+Runtime: **~1.2 h on pavement, ~0.7 h on grass.** Buy two — they hot-swap in
+seconds, which covers a longer session better than one larger pack.
 
-Chosen over the alternatives because the flat discharge curve sits right at the
-motors' nominal voltage for most of the pack's range, it survives 2000+ cycles,
-and it will not vent in a competition pit. 3S LiPo is lighter but sags under
-load. Sealed lead acid is disqualified: only ~50% usable capacity and ~4 kg.
+Chosen over 12 V LiFePO₄ on three grounds, in order of weight:
 
-> **Check the BMS continuous-current rating before buying, not the Ah.** Two
-> Cytron MDD10A boards can pull 40 A peak. Many cheap 12 Ah LiFePO₄ packs ship
-> with a BMS limited to 20–30 A, which will trip on a stall and cut power
-> mid-run. Look for ≥40 A continuous, or accept a current limit in firmware.
+- **Wiring.** A latching pack on a screw-terminal plate is the easiest
+  mechanical interface available: no connector to crimp, no charger-specific
+  lead, and a swap between runs takes seconds.
+- **The BMS requirement comes free.** Tool packs are built for 40–60 A
+  continuous tool loads, so the rating that was driving the LiFePO₄ search is
+  satisfied without shopping for it. Cheap 12 Ah LiFePO₄ packs ship 20–30 A
+  BMSs that trip on a stall and cut power mid-run.
+- **Cost**, if the ecosystem is already in the building.
+
+**This is why the motors are specified at 24 V** (§6). A 24 V motor on an
+18–20 V pack runs at ~80% of rated speed, safely, with no buck converter on the
+motion rail. Buying 12 V motors would have required a 15–20 A buck: new cost,
+new heat, and a new single point of failure between the pack and the wheels.
+
+The cost of the decision is runtime — ~72 Wh usable against ~123 Wh from the
+12 Ah LiFePO₄ — and a slightly thinner market for 24 V 37D-class gearmotors.
+
+3S LiPo was rejected for sagging under load; sealed lead acid for ~50% usable
+capacity and ~4 kg.
 
 ### Compute pack — USB-C PD power bank, 5 V / 5 A capable
 
@@ -108,7 +152,8 @@ ground is referenced too. This is normal and works, but:
 **E-stop cuts the motion pack only.** Compute stays up so the Pi keeps logging
 through the event, which is exactly the data worth having. Wire it as a
 normally-closed switch in the motion pack's positive lead, rated for stall
-current, plus a firmware-level disable on the Pico.
+current (~8 A — see §1, so a 15 A-rated switch is ample), plus a firmware-level
+disable on the Pico.
 
 **The Pico firmware must implement a command timeout (deadman).** Measured in
 simulation: Gazebo's DiffDrive latches the last velocity command and keeps
@@ -141,18 +186,26 @@ which is a graded deliverable. Needs a vent path and active cooling.
 Sizing math, so the choice is auditable:
 
 - **Speed.** 120 mm wheel → 0.377 m circumference. Target 0.6–0.8 m/s →
-  **100–130 RPM at the wheel.**
+  **100–130 RPM at the wheel.** A 24 V motor on an 18–20 V pack turns at ~80%
+  of its rating, so buy **120–155 RPM rated at 24 V** to land in that window.
 - **Torque.** ~12 kg loaded. The binding case is skid-steer turning, not driving
   straight: scrub force ≈ µ·W ≈ 0.7 × 118 N ≈ **83 N**, needing ~5 N·m total at
   the wheels → **≥1.2 N·m stall per wheel.** Straight-line grass on a 15% grade
   needs roughly half that, which is why rotation dominates.
 
-**Specification:** 37 mm-diameter 12 V metal gearmotor, integrated quadrature
-hall encoder, **1:70–1:100** reduction, **≥1.2 N·m stall**, ~5 A stall.
+**Specification:** 37 mm-diameter **24 V** metal gearmotor, integrated
+quadrature hall encoder, **120–155 RPM rated at 24 V**, **≥1.2 N·m stall**,
+~2.5 A stall at 24 V.
+
+Buy by output RPM, not by reduction ratio — a ratio only means something
+against a known base-motor speed. If a vendor's 1:100 part is rated 60 RPM at
+24 V, its base motor is slower and its torque and current figures will not
+match this sizing either.
 
 Generic parts run $15–25 each. Pololu 37D equivalents are ~$45 each but ship
 published torque and current curves — worth paying for when the writeup needs
-justified numbers rather than assumed ones.
+justified numbers rather than assumed ones. The 24 V market is thinner than the
+12 V one, which is the main practical cost of the pack decision.
 
 ### Why encoder counting goes on the Pico
 
@@ -170,8 +223,14 @@ PIO hardware and reports position over USB serial.
 ## 7. Open items
 
 - [ ] Replace every estimate here with an INA226 measurement once assembled
-- [ ] Confirm actual motor stall/rated current against the part finally ordered
-- [ ] Confirm the LiFePO₄ pack's BMS continuous rating ≥40 A
+- [ ] Confirm actual motor stall/rated current at 24 V against the part finally
+      ordered
+- [x] ~~Confirm the LiFePO₄ pack's BMS continuous rating ≥40 A~~ — **moot.**
+      Pack decision moved to a power tool battery, whose BMS is built for
+      40–60 A tool loads. See §2
+- [ ] Confirm the ~80% speed derate empirically once the motors arrive — the
+      figure assumes a linear speed/voltage relationship, which is close enough
+      for sizing but not for odometry
 - [ ] Measure SO101 holding current — the 11 W figure is inferred from STS3215
       idle current, not measured
 - [ ] Revise the ~12 kg loaded estimate: the SO-101 turns out to be **0.632 kg**
