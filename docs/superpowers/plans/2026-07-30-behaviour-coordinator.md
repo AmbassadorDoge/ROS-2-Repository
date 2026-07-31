@@ -52,6 +52,11 @@ reasoning.
   survive between calls, so anything that launches the simulator and then
   queries it must be a single
   `./scripts/dev.sh bash -c '... & sleep 25; ...; kill %1'` invocation.
+- **Always `colcon build --symlink-install`, never a bare `colcon build`.**
+  Mixing the two corrupts the build tree: `ament_cmake_python` leaves a real
+  directory where the symlink build then wants a symlink, and the failure is
+  not confined to the package you rebuilt — it aborted `drivebase_sim` too.
+  Recover with `rm -rf build/<pkg> install/<pkg>` and rebuild.
 - **ROS 2 Jazzy / Gazebo Harmonic.** No package that is not in the Jazzy
   binary index.
 - **No new heavy runtime dependencies.** The Pi 5 shares cores with YOLO. No
@@ -369,7 +374,7 @@ Expected: `EXPANDS`, and no `pod_camera` — the pod must not appear without the
 - [ ] **Step 4: Verify the sensors publish in Gazebo**
 
 ```bash
-colcon build --packages-select drivebase_description drivebase_sim
+colcon build --symlink-install --packages-select drivebase_description drivebase_sim
 source install/setup.bash
 ros2 launch drivebase_sim sim.launch.py headless:=true &
 sleep 25
@@ -565,7 +570,7 @@ In `src/drivebase_sim/launch/sim.launch.py`, after the existing
 - [ ] **Step 5: Verify the topics exist and the arm actually moves**
 
 ```bash
-colcon build --packages-select drivebase_sim drivebase_description
+colcon build --symlink-install --packages-select drivebase_sim drivebase_description
 source install/setup.bash
 ros2 launch drivebase_sim sim.launch.py headless:=true &
 sleep 25
@@ -682,7 +687,7 @@ Insert before `</world>`:
 ```bash
 cd "$(git rev-parse --show-toplevel)"
 python3 -c "import xml.etree.ElementTree as ET; ET.parse('src/drivebase_sim/worlds/test_field.sdf'); print('PARSES')"
-colcon build --packages-select drivebase_sim && source install/setup.bash
+colcon build --symlink-install --packages-select drivebase_sim && source install/setup.bash
 ros2 launch drivebase_sim sim.launch.py headless:=true &
 sleep 25
 gz model --list | grep litter
@@ -1116,7 +1121,7 @@ uint8 direction
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-colcon build --packages-select drivebase_msgs
+colcon build --symlink-install --packages-select drivebase_msgs
 source install/setup.bash
 ros2 interface show drivebase_msgs/msg/LitterDetection
 ```
@@ -2532,7 +2537,7 @@ declared next to the other configurations):
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-colcon build --packages-select drivebase_sim && source install/setup.bash
+colcon build --symlink-install --packages-select drivebase_sim && source install/setup.bash
 ros2 launch drivebase_sim sim.launch.py headless:=true &
 sleep 25
 
@@ -3973,7 +3978,7 @@ def generate_launch_description() -> LaunchDescription:
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-colcon build --packages-select drivebase_msgs drivebase_behaviour
+colcon build --symlink-install --packages-select drivebase_msgs drivebase_behaviour
 source install/setup.bash
 ros2 launch drivebase_behaviour coordinator.launch.py use_sim_time:=true &
 sleep 8
