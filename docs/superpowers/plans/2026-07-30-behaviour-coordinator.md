@@ -3115,7 +3115,7 @@ git commit -m "Add the mission state machine"
   - `ArmDriver.sequence_done: bool`
   - `grasp_sequence(solution, search_pose, gripper_open, gripper_closed, lift_height_offset, hold_seconds) -> list[tuple[dict, float]]`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 `src/drivebase_behaviour/drivebase_behaviour/arm_driver.py`:
 
@@ -3228,7 +3228,7 @@ def grasp_sequence(
     ]
 ```
 
-- [ ] **Step 2: Verify it imports cleanly**
+- [x] **Step 2: Verify it imports cleanly**
 
 ```bash
 cd "$(git rev-parse --show-toplevel)/src/drivebase_behaviour"
@@ -3246,7 +3246,7 @@ print('OK')
 
 Expected: the joint tuple, then `OK`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/drivebase_behaviour/drivebase_behaviour/arm_driver.py
@@ -3267,7 +3267,7 @@ git commit -m "Add arm driver and the grasp sequence"
     `TypedDetectionSource(node, topic)`, both exposing `latest: Detection | None`
   - `make_detection_source(node, interface: str, topic: str)`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 `src/drivebase_behaviour/drivebase_behaviour/detection_source.py`:
 
@@ -3345,7 +3345,7 @@ def make_detection_source(node: Node, interface: str, topic: str):
         "expected 'json_string' or 'typed'")
 ```
 
-- [ ] **Step 2: Verify the selector rejects a bad value**
+- [x] **Step 2: Verify the selector rejects a bad value**
 
 ```bash
 cd "$(git rev-parse --show-toplevel)/src/drivebase_behaviour"
@@ -3362,7 +3362,7 @@ else:
 
 Expected: `rejected: unknown detection_interface 'nonsense'; ...`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/drivebase_behaviour/drivebase_behaviour/detection_source.py
