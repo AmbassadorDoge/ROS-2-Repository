@@ -2566,7 +2566,7 @@ kill %1
 Expected: `detected: true` with a plausible bbox once the red can is in frame,
 and a direction that agrees with which side of the image it is on.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/drivebase_sim/drivebase_sim/sim_litter_detector.py \
@@ -2603,7 +2603,7 @@ git commit -m "Add simulated litter detector matching the trash_vision interface
     `store_grasp_point`, `start_grasp`, `start_stow`
   - `StateMachine.tick(inputs: Inputs) -> Outputs`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `src/drivebase_behaviour/test/test_state_machine.py`:
 
@@ -2857,7 +2857,7 @@ def test_a_failed_pickup_never_wedges_the_mission():
         assert out.state is State.NAVIGATING
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 cd "$(git rev-parse --show-toplevel)/src/drivebase_behaviour"
@@ -2866,7 +2866,7 @@ python3 -m pytest test/test_state_machine.py -v
 
 Expected: FAIL — no module named `state_machine`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `src/drivebase_behaviour/drivebase_behaviour/state_machine.py`:
 
@@ -3073,7 +3073,7 @@ class StateMachine:
         return Outputs(state=self.state)
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd "$(git rev-parse --show-toplevel)/src/drivebase_behaviour"
@@ -3082,7 +3082,7 @@ python3 -m pytest test/test_state_machine.py -v
 
 Expected: all PASS.
 
-- [ ] **Step 5: Run every unit test together**
+- [x] **Step 5: Run every unit test together**
 
 ```bash
 python3 -m pytest test/ -v
@@ -3090,7 +3090,7 @@ python3 -m pytest test/ -v
 
 Expected: all PASS, and the whole suite in under ~5 seconds.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/drivebase_behaviour/drivebase_behaviour/state_machine.py \
