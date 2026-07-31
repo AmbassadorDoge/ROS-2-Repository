@@ -42,12 +42,39 @@ class Chain:
 class PlanarArm:
     """The three pitch joints reduced to a planar 3R arm.
 
-    Tip position in the pan plane, for pitch values (t1, t2, t3):
-        r = origin_r + l1*cos(a1+t1) + l2*cos(a2+t1+t2) + l3*cos(a3+t1+t2+t3)
-        z = origin_z + l1*sin(a1+t1) + l2*sin(a2+t1+t2) + l3*sin(a3+t1+t2+t3)
+    Tip position in the pan plane, for planar angles (q1, q2, q3):
+        r = origin_r + l1*cos(a1+q1) + l2*cos(a2+q1+q2) + l3*cos(a3+q1+q2+q3)
+        z = origin_z + l1*sin(a1+q1) + l2*sin(a2+q1+q2) + l3*sin(a3+q1+q2+q3)
 
     The a_i are the zero-pose angles of each link, which absorb the CAD frame
     rotations so the IK never has to know about them.
+
+    The q_i are *planar* angles, positive from r toward z. Joint commands are
+    q_i = sense * t_i, because this arm's pitch joints turn the other way (see
+    `sense`). `tip` takes joint values and applies that itself; anything
+    solving in planar angles must convert before commanding the arm.
+
+    WHAT (r, z) MEANS, because two offsets make the obvious reading wrong.
+
+    `r` is NOT `hypot(x, y)` in `arm_base_link`, for two independent reasons:
+
+    1. The pan axis does not pass through the base origin. It sits 38.8 mm
+       along +x, so a radius measured from the origin is not conserved when
+       the arm pans, and the IK would aim at a moving target.
+    2. The three pitch joints run in a plane 18.3 mm to one side of the pan
+       axis, while the tip comes back to the axis plane at the wrist (the
+       gripper is deliberately centred). An unsigned `hypot` mixes those two
+       planes together and no set of link lengths can reconcile them.
+
+    So `r` is the *signed projection* onto `radial_xy` — the in-plane radial
+    direction, taken from the pan axis toward the zero-pose tip — measured
+    from `axis_xy`. Projecting rather than taking a magnitude is what drops
+    the constant lateral offset, which is legitimate precisely because it is
+    constant: every pitch axis is parallel to it, and a rotation about an axis
+    cannot change displacement along that axis. `z` is plain base-link height.
+
+    Use `to_planar` to convert a base-link point rather than reconstructing
+    this by hand.
     """
 
     l1: float
@@ -58,6 +85,46 @@ class PlanarArm:
     a3: float
     origin_r: float
     origin_z: float
+    axis_xy: tuple[float, float]
+    radial_xy: tuple[float, float]
+    sense: float
+    """+1 if a positive joint command raises the planar angle, -1 if it lowers
+    it. Derived from the joint axes, not assumed: it is -1 on this arm."""
+    pan_sense: float
+    """+1 if a positive pan command rotates the plane counter-clockwise seen
+    from +z, -1 otherwise. Also -1 on this arm — the pan axis points down."""
+
+    def to_planar(self, point, pan: float = 0.0) -> tuple[float, float]:
+        """Base-link (x, y, z) to planar (r, z), for the arm panned to `pan`.
+
+        `pan` matters because r is a projection onto the radial direction, and
+        panning turns that direction. Projecting rather than taking
+        `hypot(dx, dy)` is what discards the pitch chain's constant lateral
+        offset; see the class docstring. For a point already on the pan plane
+        the two agree, but the joint origins are not on it.
+        """
+        angle = self.pan_sense * pan
+        c, s = math.cos(angle), math.sin(angle)
+        ux = self.radial_xy[0] * c - self.radial_xy[1] * s
+        uy = self.radial_xy[0] * s + self.radial_xy[1] * c
+        dx = point[0] - self.axis_xy[0]
+        dy = point[1] - self.axis_xy[1]
+        return (dx * ux + dy * uy, point[2])
+
+    def tip(self, t1: float, t2: float, t3: float) -> tuple[float, float]:
+        """Planar (r, z) of the tip, for the three pitch *joint* values."""
+        q1, q2, q3 = self.sense * t1, self.sense * t2, self.sense * t3
+        r = self.origin_r + (
+            self.l1 * math.cos(self.a1 + q1)
+            + self.l2 * math.cos(self.a2 + q1 + q2)
+            + self.l3 * math.cos(self.a3 + q1 + q2 + q3)
+        )
+        z = self.origin_z + (
+            self.l1 * math.sin(self.a1 + q1)
+            + self.l2 * math.sin(self.a2 + q1 + q2)
+            + self.l3 * math.sin(self.a3 + q1 + q2 + q3)
+        )
+        return (r, z)
 
 
 def _rpy_to_matrix(roll: float, pitch: float, yaw: float) -> np.ndarray:
@@ -145,34 +212,57 @@ def extract_planar_arm(chain: Chain) -> PlanarArm:
     between consecutive joint origins - in (radius, height) coordinates -
     yields lengths and zero-pose angles that reproduce full FK exactly. The
     test asserts precisely that.
+
+    See PlanarArm for why those coordinates are anchored on the pan axis and
+    taken as a signed projection.
     """
     names = chain.joint_names
     pan, lift, elbow, flex = names[0], names[1], names[2], names[3]
 
-    def origin_of(joint_name: str) -> np.ndarray:
-        """Position of a joint's frame origin, in the base link."""
+    def frame_of(joint_name: str) -> np.ndarray:
+        """A joint's 4x4 frame at the zero pose, in the base link."""
         result = np.eye(4)
         for j in chain.joints:
             result = result @ _transform(
                 _rpy_to_matrix(*j.origin_rpy), j.origin_xyz)
             if j.name == joint_name:
-                return result[:3, 3]
-            if j.movable:
-                result = result @ _transform(np.eye(3), (0.0, 0.0, 0.0))
+                return result
         raise ValueError(f"joint {joint_name} not in chain")
+
+    def origin_of(joint_name: str) -> np.ndarray:
+        return frame_of(joint_name)[:3, 3]
+
+    def axis_of(joint_name: str) -> np.ndarray:
+        """A joint's rotation axis at the zero pose, in the base link."""
+        f = frame_of(joint_name)
+        axis = next(j.axis for j in chain.joints if j.name == joint_name)
+        return f[:3, :3] @ np.array(axis, dtype=float)
 
     def tip() -> np.ndarray:
         return forward_kinematics(chain, {})[:3, 3]
 
-    def planar(p: np.ndarray) -> tuple[float, float]:
-        return (math.hypot(p[0], p[1]), p[2])
+    # The pan joint contributes no link length; it fixes where the plane is
+    # hinged, which is the one thing the old origin-anchored version got wrong.
+    axis_point = origin_of(pan)
+    axis_xy = (float(axis_point[0]), float(axis_point[1]))
 
-    _ = pan  # the pan joint defines the plane; it contributes no link length
+    tip_at_zero = tip()
+    radial = np.array([tip_at_zero[0] - axis_xy[0],
+                       tip_at_zero[1] - axis_xy[1]])
+    norm = float(np.linalg.norm(radial))
+    if norm == 0.0:
+        raise ValueError("zero-pose tip lies on the pan axis; radial "
+                         "direction is undefined")
+    radial_xy = (float(radial[0] / norm), float(radial[1] / norm))
+
+    def planar(p: np.ndarray) -> tuple[float, float]:
+        dx, dy = p[0] - axis_xy[0], p[1] - axis_xy[1]
+        return (dx * radial_xy[0] + dy * radial_xy[1], p[2])
 
     p0 = planar(origin_of(lift))
     p1 = planar(origin_of(elbow))
     p2 = planar(origin_of(flex))
-    p3 = planar(tip())
+    p3 = planar(tip_at_zero)
 
     def link(a: tuple[float, float],
              b: tuple[float, float]) -> tuple[float, float]:
@@ -183,7 +273,30 @@ def extract_planar_arm(chain: Chain) -> PlanarArm:
     l2, a2 = link(p1, p2)
     l3, a3 = link(p2, p3)
 
+    # Which way a positive joint command turns the arm within the plane. The
+    # plane's own positive sense is r toward z, which is a rotation about
+    # e_r x e_z; the pitch joints on this arm turn about +y, the opposite way,
+    # so a positive command *decreases* the planar angle. Getting this
+    # backwards is invisible at the zero pose and wrong everywhere else.
+    plane_normal = np.array([radial_xy[1], -radial_xy[0], 0.0])
+    senses = [float(np.dot(axis_of(name), plane_normal))
+              for name in (lift, elbow, flex)]
+    if not all(abs(abs(s) - 1.0) < 1e-3 for s in senses):
+        raise ValueError(
+            f"pitch axes are not perpendicular to the arm plane: {senses}")
+    if not (all(s > 0 for s in senses) or all(s < 0 for s in senses)):
+        raise ValueError(
+            f"pitch joints do not share a rotation sense: {senses}")
+
+    pan_dot = float(np.dot(axis_of(pan), np.array([0.0, 0.0, 1.0])))
+    if abs(abs(pan_dot) - 1.0) > 1e-3:
+        raise ValueError(
+            f"pan axis is not vertical in the base link: {pan_dot}")
+
     return PlanarArm(
         l1=l1, l2=l2, l3=l3, a1=a1, a2=a2, a3=a3,
         origin_r=p0[0], origin_z=p0[1],
+        axis_xy=axis_xy, radial_xy=radial_xy,
+        sense=math.copysign(1.0, senses[0]),
+        pan_sense=math.copysign(1.0, pan_dot),
     )

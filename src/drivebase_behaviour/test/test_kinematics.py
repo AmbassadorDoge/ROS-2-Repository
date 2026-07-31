@@ -46,14 +46,26 @@ def test_fk_at_zero_is_a_valid_transform(chain):
     assert (r @ r.T) == pytest.approx(np.eye(3), abs=1e-9)
 
 
-def test_pan_rotates_the_tip_about_the_base_z_axis(chain):
+def test_pan_rotates_the_tip_about_the_pan_axis(chain):
+    """Panning preserves radius and height — about the pan axis, which is
+    38.8 mm off the base origin, not about the origin itself.
+
+    Tolerance is 1e-5 rather than the 1e-9 you would expect from exact
+    geometry: the URDF's CAD export writes pi as 3.14159, which tilts the pan
+    axis 2.65e-6 rad off base z and moves the tip ~1e-6 m over a pan. That is
+    a property of the model, not of this code.
+    """
+    arm = extract_planar_arm(chain)
+    ax, ay = arm.axis_xy
+
     at_zero = forward_kinematics(chain, {})[:3, 3]
-    quarter = forward_kinematics(
-        chain, {"arm_shoulder_pan": math.pi / 2})[:3, 3]
-    # Radius from the pan axis is preserved; height is preserved.
-    assert math.hypot(*quarter[:2]) == pytest.approx(
-        math.hypot(*at_zero[:2]), abs=1e-9)
-    assert quarter[2] == pytest.approx(at_zero[2], abs=1e-9)
+    r_zero = math.hypot(at_zero[0] - ax, at_zero[1] - ay)
+
+    for angle in (math.pi / 2, 1.0, -0.7):
+        panned = forward_kinematics(chain, {"arm_shoulder_pan": angle})[:3, 3]
+        assert math.hypot(panned[0] - ax, panned[1] - ay) == pytest.approx(
+            r_zero, abs=1e-5)
+        assert panned[2] == pytest.approx(at_zero[2], abs=1e-5)
 
 
 def test_planar_link_lengths_are_physically_sensible(chain):
@@ -82,18 +94,24 @@ def test_planar_model_reproduces_full_fk(chain):
     ]:
         values = dict(zip(PITCH_JOINTS, (t1, t2, t3)))
         tip = forward_kinematics(chain, values)[:3, 3]
-        r_actual = math.hypot(tip[0], tip[1])
-        z_actual = tip[2]
+        r_actual, z_actual = arm.to_planar(tip)
+        r_model, z_model = arm.tip(t1, t2, t3)
 
-        r_model = arm.origin_r + (
-            arm.l1 * math.cos(arm.a1 + t1)
-            + arm.l2 * math.cos(arm.a2 + t1 + t2)
-            + arm.l3 * math.cos(arm.a3 + t1 + t2 + t3)
-        )
-        z_model = arm.origin_z + (
-            arm.l1 * math.sin(arm.a1 + t1)
-            + arm.l2 * math.sin(arm.a2 + t1 + t2)
-            + arm.l3 * math.sin(arm.a3 + t1 + t2 + t3)
-        )
-        assert r_model == pytest.approx(r_actual, abs=1e-6)
-        assert z_model == pytest.approx(z_actual, abs=1e-6)
+        assert r_model == pytest.approx(r_actual, abs=1e-5)
+        assert z_model == pytest.approx(z_actual, abs=1e-5)
+
+
+def test_planar_model_is_independent_of_pan(chain):
+    """The whole point of the planar reduction: pan changes where the plane
+    points, never where the tip sits within it. If (r, z) drifted with pan,
+    the IK would need a different solution per pan angle.
+    """
+    arm = extract_planar_arm(chain)
+    pitch = (0.4, -0.6, 0.3)
+    expected = arm.tip(*pitch)
+
+    for pan in (0.0, 0.8, -1.2, math.pi / 2):
+        values = dict(zip(PITCH_JOINTS, pitch))
+        values["arm_shoulder_pan"] = pan
+        tip = forward_kinematics(chain, values)[:3, 3]
+        assert arm.to_planar(tip, pan) == pytest.approx(expected, abs=1e-5)

@@ -24,11 +24,16 @@ Branch: **`feature/behaviour-coordinator`** (nothing pushed; `master` untouched)
 Plan corrections found by executing it: `50454aa`, `b696145`, `20936ee`,
 `ca92441`, `2dbf7c3`.
 
+Phase 2 so far: **6** `drivebase_msgs` (`bb23167`), **7** detection adapter
+(`881a7c5`), **8** pixel-to-point localisation (`a595fed`), **9** URDF-derived
+kinematics — 39 tests green.
+
 ## Next
 
-**Phase 2: Tasks 6-10** — `drivebase_msgs`, detection adapter, localisation,
-URDF-derived kinematics, closed-form IK. **All pure logic: no simulator, no
-GPU, fast to test.** Run with `./scripts/dev.sh python3 -m pytest ...`.
+**Task 10: closed-form IK** — the last of Phase 2. Solve the planar 3R arm
+from `extract_planar_arm`. **Read "The arm's planar frame" below first**; the
+three offsets there are exactly what a naive IK gets wrong, and Task 9 lost a
+session to two of them. Run with `./scripts/dev-native.sh python -m pytest ...`.
 
 Execution mode agreed: **subagent-driven**, one agent per task, reviewed
 between tasks.
@@ -52,13 +57,44 @@ ground (vs 41). The sensor pod did not disturb the arm's kinematics.
 
 ## Environment
 
-Apple Silicon Mac. No native ROS 2 or Gazebo. **Everything runs through
-`./scripts/dev.sh <command>`**, which mounts the repo at `/ws` in
+**Two machines now. Check which one you are on before trusting a command.**
+
+### Arch Linux workstation (current, from Task 9 onward)
+
+No Docker, no ROS 2, no Gazebo, and no passwordless sudo. Pure-logic work runs
+through **`./scripts/dev-native.sh <command>`**, which provisions a Python
+3.12 venv at `~/.venvs/drivebase-dev` (numpy, pytest, urdf_parser_py, xacro,
+and `ament_index_python` from source — it is not on PyPI) and a minimal ament
+index at `~/.cache/drivebase-dev/ament` so xacro can resolve
+`$(find drivebase_description)` without a colcon install tree.
+
+```bash
+./scripts/dev-native.sh python -m pytest src/drivebase_behaviour/test -v
+```
+
+**It covers geometry only** — anything importing `rclpy`, any launch file,
+`colcon`, and all of Gazebo still need the container. A
+`ModuleNotFoundError` on a ROS package is that boundary, not a bug.
+
+Two things this cost, worth not rediscovering:
+
+- **The repo is on an NTFS/fuseblk mount that drops the executable bit.** A
+  venv created *inside* the repo produces console scripts that will not run
+  (`Permission denied` on `.venv/bin/xacro`), and new scripts land as `100644`
+  — `git update-index --chmod=+x` is how `dev-native.sh` got its mode.
+- **Docker and ROS were offered but need a password**, which an agent session
+  cannot supply. Install commands are in the handoff notes if the container
+  path is wanted back.
+
+### Apple Silicon Mac (Tasks 1–8)
+
+No native ROS 2 or Gazebo either; everything ran through
+**`./scripts/dev.sh <command>`**, which mounts the repo at `/ws` in
 `drivebase-dev:jazzy-pod` (built once, on top of the pre-existing
 `drivebase-dev:jazzy`, adding `ros-jazzy-urdfdom-py`).
 
-Workspace builds clean: `./scripts/dev.sh colcon build --symlink-install`,
-6 packages, ~3 s.
+Workspace built clean there: `./scripts/dev.sh colcon build --symlink-install`,
+6 packages, ~3 s. **Not re-verified on Arch** — there is no colcon here.
 
 ### Software rendering
 
@@ -105,6 +141,47 @@ other five joints holding stow. This was the gate for all of Phases 2-4.
    Whether this is a torque limit or a starved controller under llvmpipe is
    not established.
 6. **`/joint_states` uses `arm_`-prefixed names**, not the command-topic names.
+
+### The arm's planar frame — three offsets, all silent
+
+Task 9 reduces the three pitch joints to a planar 3R arm. The reduction is
+exact, but only in coordinates anchored the right way. Each of these is
+invisible at the zero pose and wrong everywhere else, which is the worst
+possible failure shape — the first WIP passed its zero-pose case and failed
+the rest.
+
+1. **The pan axis is 38.8 mm off the base origin** (`+x` in `arm_base_link`).
+   A radius measured as `hypot(x, y)` from the origin is not conserved when
+   the arm pans, so an IK built on it aims at a target that moves when it
+   turns.
+2. **The pitch chain runs 18.3 mm to one side of the pan plane** (y =
+   −0.0183), while the tip returns to y ≈ 0 at the wrist — the gripper is
+   deliberately centred. So `hypot` mixes two different planes and *no* set
+   of link lengths reconciles them. `r` must be a **signed projection** onto
+   the radial direction, which drops the lateral offset legitimately: the
+   pitch axes are parallel to it, and rotation about an axis cannot change
+   displacement along it.
+3. **A positive joint command turns the arm the *negative* way in the plane.**
+   The pitch joints turn about `+y`, while the plane's own positive sense
+   (r toward z) is a rotation about `−y`. `PlanarArm.sense` is `−1`, derived
+   from the axes rather than assumed, and `pan_sense` is `−1` too because the
+   pan axis points *down*.
+
+`PlanarArm.to_planar(point, pan)` does all three. Do not hand-roll it — and
+note it takes the pan angle, because `r` is a projection and panning turns the
+direction it projects onto.
+
+**Tolerances are 1e-5, not 1e-9, and that is the model's fault, not the
+code's.** The CAD export writes pi as `3.14159`, which tilts the pan axis
+2.65e-6 rad off vertical and moves the tip ~1e-6 m over a pan.
+
+**Cross-checks against measurements already in this file** (all consistent,
+all in the same direction): mount height 0.260 m exactly; lowest tip 224.9 mm
+below the mount vs **219–220 mm measured in sim**; grasp radius 0.389 m vs
+**0.397 m measured**. The model is ideal commanded kinematics and the sim
+figures include the **droop of up to 0.20 rad** noted above, so the model
+reading a few mm *further* is expected. Task 10's IK inherits this: it solves
+where the arm is told to go, never where it ends up.
 
 ### Settled: the pod's aim
 
