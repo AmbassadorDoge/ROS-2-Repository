@@ -33,6 +33,7 @@ setup(
             'laserscan_to_range = drivebase_sim.laserscan_to_range:main',
             'gps_covariance = drivebase_sim.gps_covariance:main',
             'scripted_drive = drivebase_sim.scripted_drive:main',
+            'sim_litter_detector = drivebase_sim.sim_litter_detector:main',
         ],
     },
 )

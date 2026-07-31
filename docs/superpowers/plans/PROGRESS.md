@@ -32,13 +32,66 @@ kinematics, **10** closed-form IK — 50 tests green.
 
 ## Next
 
-**Task 11: `sim_litter_detector`** — first of Phase 3, and the first task since
-Task 8 that needs the container: it is an `rclpy` node with `cv_bridge`, so
-`dev-native.sh` cannot run it and **this Arch box has no Docker or ROS**. Check
-the Environment section before planning around that.
+**Task 11: `sim_litter_detector` — code complete and working in sim, one
+question open.** Resume there. Details below.
 
 Execution mode agreed: **subagent-driven**, one agent per task, reviewed
 between tasks.
+
+### Task 11 state as of 2026-07-31
+
+All four files are written, build clean, and the node runs in the sim:
+
+- `src/drivebase_sim/drivebase_sim/sim_litter_detector.py` (new)
+- `src/drivebase_sim/setup.py` — entry point added
+- `src/drivebase_sim/package.xml` — `std_msgs`, `cv_bridge`, `python3-opencv`
+- `src/drivebase_sim/launch/sim.launch.py` — `litter_detector:=true` flag
+- `scripts/verify_litter_detector.py` (new) — the acceptance check, reusable
+
+**Verified against the real thing before writing:** the plan's JSON key layout,
+both topic names (`/vision/target`, `/vision/direction`) and the `deadband`
+default of 0.12 all match `trash_vision/detector_node.py` exactly. The shim is
+interface-faithful.
+
+**Measured in sim** (headless, real GPU, one run):
+
+| Phase | Result |
+|---|---|
+| At spawn, nothing in view | 180 msgs, `detected=false` throughout, `NO_TARGET` |
+| Driving toward `litter_can_a` at (1.8, 0.5) | 257 msgs, **`detected=true` in 148**, all of `LEFT`/`CENTER`/`RIGHT` seen |
+
+So the loop runs end to end and the direction logic exercises every branch.
+
+#### The one open question: the hue range
+
+I changed the plan's `hue_low`/`hue_high` defaults from **0..10** to
+**170..10**, and added `_hue_mask`, which reads `low > high` as a *wrapping*
+range and ORs both ends. Reason: OpenCV packs hue into 0-179 and pure red sits
+at 0, so a lit red object scatters to both ends; a naive `inRange(0, 10)` keeps
+the bright half and silently drops the shaded half, which **moves the centroid
+rather than emptying the mask** — a wrong answer, not a missing one.
+
+Detection demonstrably works with 170..10. What is **not** settled is whether
+the wrap was necessary, because the diagnostic that was meant to answer it
+did not:
+
+> `hue_report` in `verify_litter_detector.py` sampled hue 18 (100k px) and
+> hue 30, with **zero** pixels in either 0..10 or 170..179.
+
+That reads like a contradiction but almost certainly is not — **it samples the
+last frame received, and that run ended with `detected=false`, i.e. no litter
+in view.** Hue 18/30 is the orange barrier and the ground, not the can. The
+measurement is inconclusive, not contradictory. Do not act on it as written.
+
+**To close this out:** re-run the verifier with the histogram taken from a
+frame where `detected=true` (gate `hue_report` on the last target message
+having `detected: true`, or store the frame that produced the largest blob).
+Then either keep 170..10 with evidence, or revert to the plan's 0..10 if the
+litter turns out to sit entirely in the low band. Note the barriers are orange
+at hue ~13, so **the upper bound of 10 is what keeps them out of the mask** —
+whatever else changes, do not raise it past ~12.
+
+Nothing here blocks Task 12; the interface is stable either way.
 
 ### What Task 10 changed about the plan
 
@@ -121,8 +174,29 @@ Two consequences for Task 12 onward:
 
 ### Arch Linux workstation (current, from Task 9 onward)
 
-No Docker, no ROS 2, no Gazebo, and no passwordless sudo. Pure-logic work runs
-through **`./scripts/dev-native.sh <command>`**, which provisions a Python
+**Docker and the GPU both work here — corrected 2026-07-31.** This section said
+"no Docker, no ROS 2, no Gazebo" through Task 10 and that is no longer true;
+the user corrected it and it was verified:
+
+- `docker` runs **without sudo** (server 29.6.1). `drivebase-dev:jazzy-pod`,
+  `drivebase-dev:jazzy` and `osrf/ros:jazzy-desktop-full` are all present.
+- **`./scripts/dev.sh <command>` works**, and reports
+  `windowed on :1, hardware GL via /dev/dri` — **a real GPU, not llvmpipe.**
+- `./scripts/dev.sh colcon build --symlink-install` builds **all 8 packages
+  clean in 2.5 s**. This is the first verified colcon build on this machine;
+  the note below saying it was "not re-verified on Arch" is now stale.
+
+ROS 2 is still not native (`/opt/ros` does not exist, there is no `ros2` or
+`colcon` on `PATH`) — it lives in the container, reached through `dev.sh`.
+
+**Consequence: the software-rendering caveats no longer apply here.** Anything
+`STATUS.md` or this file defers to "re-check on a real GPU" can now actually be
+checked — including known issue #2, the Nav2 controller running at 3.5-11 Hz
+against a 20 Hz target, which was always suspected to be a starved controller
+rather than a real defect.
+
+`dev-native.sh` is still the fast path for pure-geometry work (no container
+start-up), and still covers geometry only. It provisions a Python
 3.12 venv at `~/.venvs/drivebase-dev` (numpy, pytest, urdf_parser_py, xacro,
 and `ament_index_python` from source — it is not on PyPI) and a minimal ament
 index at `~/.cache/drivebase-dev/ament` so xacro can resolve
@@ -154,9 +228,9 @@ No native ROS 2 or Gazebo either; everything ran through
 `drivebase-dev:jazzy`, adding `ros-jazzy-urdfdom-py`).
 
 Workspace built clean there: `./scripts/dev.sh colcon build --symlink-install`,
-6 packages, ~3 s. **Not re-verified on Arch** — there is no colcon here.
+6 packages, ~3 s. Since re-verified on Arch: 8 packages, 2.5 s.
 
-### Software rendering
+### Software rendering — Mac only, not the current machine
 
 Docker on macOS has no GPU passthrough, so Gazebo falls back to llvmpipe.
 **Measured: it works** — the camera publishes full 640×480 frames headless.

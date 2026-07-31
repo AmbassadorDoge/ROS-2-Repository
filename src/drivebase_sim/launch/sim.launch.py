@@ -56,11 +56,13 @@ def generate_launch_description() -> LaunchDescription:
     with_ekf = LaunchConfiguration("ekf")
     use_gps = LaunchConfiguration("gps")
     use_arm = LaunchConfiguration("arm")
+    wheel_mu1 = LaunchConfiguration("wheel_mu1")
     wheel_mu2 = LaunchConfiguration("wheel_mu2")
+    with_litter_detector = LaunchConfiguration("litter_detector")
 
     robot_description = ParameterValue(
         Command(["xacro ", xacro_file, " use_sim:=true", " use_arm:=", use_arm,
-                  " wheel_mu2:=", wheel_mu2]),
+                  " wheel_mu1:=", wheel_mu1, " wheel_mu2:=", wheel_mu2]),
         value_type=str,
     )
 
@@ -107,9 +109,24 @@ def generate_launch_description() -> LaunchDescription:
                         "base itself.",
         ),
         DeclareLaunchArgument(
+            "wheel_mu1", default_value="1.0",
+            description="Longitudinal wheel friction. Exposed because dartsim, "
+                        "gz-sim's default engine, does not implement the "
+                        "anisotropic mu1/mu2 split - it takes a single "
+                        "coefficient - so wheel_mu2 alone cannot change contact "
+                        "behaviour and sweeping it proves nothing.",
+        ),
+        DeclareLaunchArgument(
             "wheel_mu2", default_value="0.6",
-            description="Lateral wheel friction. Prime suspect for the robot "
-                        "being unable to rotate in place.",
+            description="Lateral wheel friction. Was the prime suspect for the "
+                        "robot being unable to rotate in place; see wheel_mu1 "
+                        "for why sweeping it had no effect.",
+        ),
+        DeclareLaunchArgument(
+            "litter_detector", default_value="true",
+            description="Run the simulated litter detector. Turn off on "
+                        "hardware, where trash_vision publishes the same "
+                        "topics for real.",
         ),
         DeclareLaunchArgument(
             "gps", default_value="false",
@@ -200,6 +217,16 @@ def generate_launch_description() -> LaunchDescription:
             package="drivebase_sim",
             executable="gps_covariance",
             parameters=[{"use_sim_time": True}],
+            output="screen",
+        ),
+
+        # Stands in for trash_vision, which cannot run here. Publishes the same
+        # topics in the same shape, so the coordinator is unaware of the swap.
+        Node(
+            package="drivebase_sim",
+            executable="sim_litter_detector",
+            parameters=[{"use_sim_time": True}],
+            condition=IfCondition(with_litter_detector),
             output="screen",
         ),
 

@@ -2331,7 +2331,7 @@ coordinator change.
 - Produces: `/vision/target` (`std_msgs/String`, JSON identical in shape to
   `trash_vision`'s) and `/vision/direction` (`std_msgs/String`)
 
-- [ ] **Step 1: Add the dependencies and entry point**
+- [x] **Step 1: Add the dependencies and entry point**
 
 In `src/drivebase_sim/package.xml`, alongside the other `exec_depend` entries:
 
@@ -2347,7 +2347,7 @@ In `src/drivebase_sim/setup.py`, add to `console_scripts`:
             'sim_litter_detector = drivebase_sim.sim_litter_detector:main',
 ```
 
-- [ ] **Step 2: Implement the shim**
+- [x] **Step 2: Implement the shim**
 
 `src/drivebase_sim/drivebase_sim/sim_litter_detector.py`:
 
@@ -2513,7 +2513,7 @@ if __name__ == "__main__":
     main()
 ```
 
-- [ ] **Step 3: Add it to the sim launch, behind a flag**
+- [x] **Step 3: Add it to the sim launch, behind a flag**
 
 In `src/drivebase_sim/launch/sim.launch.py`, add a launch argument alongside
 the others:
@@ -2540,7 +2540,7 @@ declared next to the other configurations):
         ),
 ```
 
-- [ ] **Step 4: Verify it detects the litter**
+- [~] **Step 4: Verify it detects the litter**
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
