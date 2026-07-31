@@ -1,0 +1,356 @@
+[
+ {
+  "name": "sky",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.4,
+  "elbow": 0.0,
+  "wrist": 0.4,
+  "grip": 0.0
+ },
+ {
+  "name": "sky_open",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.4,
+  "elbow": 0.0,
+  "wrist": 0.4,
+  "grip": 1.5
+ },
+ {
+  "name": "S_L-1.4_E1.45_s0.15",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.4,
+  "elbow": 1.45,
+  "wrist": 0.1
+ },
+ {
+  "name": "S_L-1.4_E1.45_s0.35",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.4,
+  "elbow": 1.45,
+  "wrist": 0.3
+ },
+ {
+  "name": "S_L-1.4_E1.45_s0.55",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.4,
+  "elbow": 1.45,
+  "wrist": 0.5
+ },
+ {
+  "name": "S_L-1.4_E1.65_s0.15",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.4,
+  "elbow": 1.65,
+  "wrist": -0.1
+ },
+ {
+  "name": "S_L-1.4_E1.65_s0.35",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.4,
+  "elbow": 1.65,
+  "wrist": 0.1
+ },
+ {
+  "name": "S_L-1.4_E1.65_s0.55",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.4,
+  "elbow": 1.65,
+  "wrist": 0.3
+ },
+ {
+  "name": "S_L-1.2_E1.45_s0.15",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.2,
+  "elbow": 1.45,
+  "wrist": -0.1
+ },
+ {
+  "name": "S_L-1.2_E1.45_s0.35",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.2,
+  "elbow": 1.45,
+  "wrist": 0.1
+ },
+ {
+  "name": "S_L-1.2_E1.45_s0.55",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.2,
+  "elbow": 1.45,
+  "wrist": 0.3
+ },
+ {
+  "name": "S_L-1.2_E1.65_s0.15",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.2,
+  "elbow": 1.65,
+  "wrist": -0.3
+ },
+ {
+  "name": "S_L-1.2_E1.65_s0.35",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.2,
+  "elbow": 1.65,
+  "wrist": -0.1
+ },
+ {
+  "name": "S_L-1.2_E1.65_s0.55",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.2,
+  "elbow": 1.65,
+  "wrist": 0.1
+ },
+ {
+  "name": "S_L-1.0_E1.45_s0.15",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.0,
+  "elbow": 1.45,
+  "wrist": -0.3
+ },
+ {
+  "name": "S_L-1.0_E1.45_s0.35",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.0,
+  "elbow": 1.45,
+  "wrist": -0.1
+ },
+ {
+  "name": "S_L-1.0_E1.45_s0.55",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.0,
+  "elbow": 1.45,
+  "wrist": 0.1
+ },
+ {
+  "name": "S_L-1.0_E1.65_s0.15",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.0,
+  "elbow": 1.65,
+  "wrist": -0.5
+ },
+ {
+  "name": "S_L-1.0_E1.65_s0.35",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.0,
+  "elbow": 1.65,
+  "wrist": -0.3
+ },
+ {
+  "name": "S_L-1.0_E1.65_s0.55",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": -1.0,
+  "elbow": 1.65,
+  "wrist": -0.1
+ },
+ {
+  "name": "C_L0.8_E0.0_s0.9",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 0.8,
+  "elbow": 0.0,
+  "wrist": 0.1
+ },
+ {
+  "name": "C_L0.8_E0.0_s1.2",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 0.8,
+  "elbow": 0.0,
+  "wrist": 0.4
+ },
+ {
+  "name": "C_L0.8_E0.0_s1.5",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 0.8,
+  "elbow": 0.0,
+  "wrist": 0.7
+ },
+ {
+  "name": "C_L0.8_E0.5_s0.9",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 0.8,
+  "elbow": 0.5,
+  "wrist": -0.4
+ },
+ {
+  "name": "C_L0.8_E0.5_s1.2",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 0.8,
+  "elbow": 0.5,
+  "wrist": -0.1
+ },
+ {
+  "name": "C_L0.8_E0.5_s1.5",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 0.8,
+  "elbow": 0.5,
+  "wrist": 0.2
+ },
+ {
+  "name": "C_L1.1_E0.0_s0.9",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 1.1,
+  "elbow": 0.0,
+  "wrist": -0.2
+ },
+ {
+  "name": "C_L1.1_E0.0_s1.2",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 1.1,
+  "elbow": 0.0,
+  "wrist": 0.1
+ },
+ {
+  "name": "C_L1.1_E0.0_s1.5",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 1.1,
+  "elbow": 0.0,
+  "wrist": 0.4
+ },
+ {
+  "name": "C_L1.1_E0.5_s0.9",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 1.1,
+  "elbow": 0.5,
+  "wrist": -0.7
+ },
+ {
+  "name": "C_L1.1_E0.5_s1.2",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 1.1,
+  "elbow": 0.5,
+  "wrist": -0.4
+ },
+ {
+  "name": "C_L1.1_E0.5_s1.5",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 1.1,
+  "elbow": 0.5,
+  "wrist": -0.1
+ },
+ {
+  "name": "C_L1.4_E0.0_s0.9",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 1.4,
+  "elbow": 0.0,
+  "wrist": -0.5
+ },
+ {
+  "name": "C_L1.4_E0.0_s1.2",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 1.4,
+  "elbow": 0.0,
+  "wrist": -0.2
+ },
+ {
+  "name": "C_L1.4_E0.0_s1.5",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 1.4,
+  "elbow": 0.0,
+  "wrist": 0.1
+ },
+ {
+  "name": "C_L1.4_E0.5_s0.9",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 1.4,
+  "elbow": 0.5,
+  "wrist": -1.0
+ },
+ {
+  "name": "C_L1.4_E0.5_s1.2",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 1.4,
+  "elbow": 0.5,
+  "wrist": -0.7
+ },
+ {
+  "name": "C_L1.4_E0.5_s1.5",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 1.4,
+  "elbow": 0.5,
+  "wrist": -0.4
+ },
+ {
+  "name": "C_L1.74_E0.0_s0.9",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 1.74,
+  "elbow": 0.0,
+  "wrist": -0.84
+ },
+ {
+  "name": "C_L1.74_E0.0_s1.2",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 1.74,
+  "elbow": 0.0,
+  "wrist": -0.54
+ },
+ {
+  "name": "C_L1.74_E0.0_s1.5",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 1.74,
+  "elbow": 0.0,
+  "wrist": -0.24
+ },
+ {
+  "name": "C_L1.74_E0.5_s0.9",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 1.74,
+  "elbow": 0.5,
+  "wrist": -1.34
+ },
+ {
+  "name": "C_L1.74_E0.5_s1.2",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 1.74,
+  "elbow": 0.5,
+  "wrist": -1.04
+ },
+ {
+  "name": "C_L1.74_E0.5_s1.5",
+  "settle": 4.5,
+  "dwell": 2.0,
+  "lift": 1.74,
+  "elbow": 0.5,
+  "wrist": -0.74
+ }
+]

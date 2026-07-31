@@ -1,0 +1,112 @@
+[
+ {
+  "name": "sky_r0.0",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": -1.4,
+  "elbow": 0.0,
+  "wrist": 0.4,
+  "roll": 0.0,
+  "grip": 1.5
+ },
+ {
+  "name": "sky_r0.8",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": -1.4,
+  "elbow": 0.0,
+  "wrist": 0.4,
+  "roll": 0.8,
+  "grip": 1.5
+ },
+ {
+  "name": "sky_r-0.8",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": -1.4,
+  "elbow": 0.0,
+  "wrist": 0.4,
+  "roll": -0.8,
+  "grip": 1.5
+ },
+ {
+  "name": "sky_r1.6",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": -1.4,
+  "elbow": 0.0,
+  "wrist": 0.4,
+  "roll": 1.6,
+  "grip": 1.5
+ },
+ {
+  "name": "sky_r-1.6",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": -1.4,
+  "elbow": 0.0,
+  "wrist": 0.4,
+  "roll": -1.6,
+  "grip": 1.5
+ },
+ {
+  "name": "sky_r2.5",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": -1.4,
+  "elbow": 0.0,
+  "wrist": 0.4,
+  "roll": 2.5,
+  "grip": 1.5
+ },
+ {
+  "name": "sky_r-2.5",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": -1.4,
+  "elbow": 0.0,
+  "wrist": 0.4,
+  "roll": -2.5,
+  "grip": 1.5
+ },
+ {
+  "name": "sky_closed",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": -1.4,
+  "elbow": 0.0,
+  "wrist": 0.4,
+  "roll": 0.0,
+  "grip": 0.0
+ },
+ {
+  "name": "grasp_open",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 1.74,
+  "elbow": 0.0,
+  "wrist": 0.0,
+  "roll": 0.0,
+  "grip": 1.5
+ },
+ {
+  "name": "grasp_open_r1.6",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 1.74,
+  "elbow": 0.0,
+  "wrist": 0.0,
+  "roll": 1.6,
+  "grip": 1.5
+ },
+ {
+  "name": "grasp_open_r-1.6",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 1.74,
+  "elbow": 0.0,
+  "wrist": 0.0,
+  "roll": -1.6,
+  "grip": 1.5
+ }
+]

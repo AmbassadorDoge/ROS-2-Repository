@@ -1,0 +1,234 @@
+[
+ {
+  "name": "search_proven",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": -1.4,
+  "elbow": 0.0,
+  "wrist": 0.4
+ },
+ {
+  "name": "search_alt",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": -1.2,
+  "elbow": 0.0,
+  "wrist": 0.2
+ },
+ {
+  "name": "stow",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": -1.2,
+  "elbow": 1.55,
+  "wrist": 1.1
+ },
+ {
+  "name": "C_a_L0.5",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 0.5,
+  "elbow": 0.46,
+  "wrist": -1.4
+ },
+ {
+  "name": "C_a_L0.6",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 0.6,
+  "elbow": 0.46,
+  "wrist": -1.4
+ },
+ {
+  "name": "C_a_L0.7",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 0.7,
+  "elbow": 0.46,
+  "wrist": -1.4
+ },
+ {
+  "name": "C_a_L0.8",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 0.8,
+  "elbow": 0.46,
+  "wrist": -1.4
+ },
+ {
+  "name": "C_a_L0.9",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 0.9,
+  "elbow": 0.46,
+  "wrist": -1.4
+ },
+ {
+  "name": "C_a_L1.0",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 1.0,
+  "elbow": 0.46,
+  "wrist": -1.4
+ },
+ {
+  "name": "C_a_L1.1",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 1.1,
+  "elbow": 0.46,
+  "wrist": -1.4
+ },
+ {
+  "name": "C_a_L1.2",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 1.2,
+  "elbow": 0.46,
+  "wrist": -1.4
+ },
+ {
+  "name": "C_b_L0.6",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 0.6,
+  "elbow": 0.66,
+  "wrist": -1.55
+ },
+ {
+  "name": "C_b_L0.7",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 0.7,
+  "elbow": 0.66,
+  "wrist": -1.55
+ },
+ {
+  "name": "C_b_L0.8",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 0.8,
+  "elbow": 0.66,
+  "wrist": -1.55
+ },
+ {
+  "name": "C_b_L0.9",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 0.9,
+  "elbow": 0.66,
+  "wrist": -1.55
+ },
+ {
+  "name": "C_b_L1.0",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 1.0,
+  "elbow": 0.66,
+  "wrist": -1.55
+ },
+ {
+  "name": "C_b_L1.1",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 1.1,
+  "elbow": 0.66,
+  "wrist": -1.55
+ },
+ {
+  "name": "C_c_L0.6",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 0.6,
+  "elbow": 0.36,
+  "wrist": -1.35
+ },
+ {
+  "name": "C_c_L0.7",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 0.7,
+  "elbow": 0.36,
+  "wrist": -1.35
+ },
+ {
+  "name": "C_c_L0.8",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 0.8,
+  "elbow": 0.36,
+  "wrist": -1.35
+ },
+ {
+  "name": "C_c_L0.9",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 0.9,
+  "elbow": 0.36,
+  "wrist": -1.35
+ },
+ {
+  "name": "C_c_L1.0",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 1.0,
+  "elbow": 0.36,
+  "wrist": -1.35
+ },
+ {
+  "name": "C_c_L1.1",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 1.1,
+  "elbow": 0.36,
+  "wrist": -1.35
+ },
+ {
+  "name": "C_d_L0.7",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 0.7,
+  "elbow": 0.8,
+  "wrist": -1.6
+ },
+ {
+  "name": "C_e_L0.7",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 0.7,
+  "elbow": 0.2,
+  "wrist": -1.25
+ },
+ {
+  "name": "C_d_L0.9",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 0.9,
+  "elbow": 0.8,
+  "wrist": -1.6
+ },
+ {
+  "name": "C_e_L0.9",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 0.9,
+  "elbow": 0.2,
+  "wrist": -1.25
+ },
+ {
+  "name": "C_d_L1.1",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 1.1,
+  "elbow": 0.8,
+  "wrist": -1.6
+ },
+ {
+  "name": "C_e_L1.1",
+  "settle": 5.0,
+  "dwell": 2.5,
+  "lift": 1.1,
+  "elbow": 0.2,
+  "wrist": -1.25
+ }
+]

@@ -304,8 +304,37 @@
          placeholder until the physical pod exists; they must be remeasured, and
          must never be assumed zero. -->
     <xacro:property name="pod_camera_xyz" value="0.010 0.0 0.030"/>
-    <xacro:property name="pod_camera_rpy" value="0 0 0"/>
     <xacro:property name="pod_tof_xyz"    value="0.010 0.0 0.015"/>
+
+    <!-- DO NOT ROTATE THIS TO POINT AT THE GRIPPER. It was tried, twice, and
+         both attempts blinded the sensor outright. Keeping zero is a measured
+         result, not the absence of one.
+
+         arm_wrist_link's +X genuinely does not point at the gripper: the SO-101
+         puts arm_gripper_frame_link at (0.00790, -0.15923, 0.01832) here,
+         essentially along -Y, 87.2 degrees off +X. Aiming the pod along that
+         approach axis looks like the obvious correction. It is not, because the
+         gripper body itself runs from this link out to the jaws, so that line of
+         sight is straight down it:
+
+           rpy 0 -0.1145 -1.5213, offsets as above ....... 0.058 m at 31 poses
+           rpy 0  0.0402 -1.6374, offsets 0.030/0.040 .... 0.089 m at 44 poses
+
+         Both figures are constant to +-3 mm across poses whose geometry differs
+         completely, and both persist at poses whose ray points at open sky,
+         where an unobstructed beam must return the sensor's 4.000 m max. That is
+         the robot's own castings, at every arm pose, every wrist_roll from -2.5
+         to +2.5 rad, and both gripper openings.
+
+         At rpy 0 0 0 the beam clears the castings by 69.5 degrees and the sky
+         check returns exactly 4.000 m. See docs/arm_workspace.md §3 for the
+         search and confirm poses this supports, and scripts/pod_aim_search.py
+         for the sweep over every mounting orientation.
+
+         Shared by both pod joints so they cannot drift apart: the camera's view
+         axis and the ToF ray agree to 4 decimal places at every pose measured,
+         and the localisation maths assumes exactly that. -->
+    <xacro:property name="pod_aim_rpy" value="0 0 0"/>
 
     <link name="pod_camera_link">
       <xacro:sensor_inertia/>
@@ -313,7 +342,7 @@
     <joint name="pod_camera_joint" type="fixed">
       <parent link="arm_wrist_link"/>
       <child  link="pod_camera_link"/>
-      <origin xyz="${pod_camera_xyz}" rpy="${pod_camera_rpy}"/>
+      <origin xyz="${pod_camera_xyz}" rpy="${pod_aim_rpy}"/>
     </joint>
 
     <!-- ROS optical convention: z forward, x right, y down. Image pipelines and
@@ -332,7 +361,7 @@
     <joint name="pod_tof_joint" type="fixed">
       <parent link="arm_wrist_link"/>
       <child  link="pod_tof_link"/>
-      <origin xyz="${pod_tof_xyz}" rpy="0 0 0"/>
+      <origin xyz="${pod_tof_xyz}" rpy="${pod_aim_rpy}"/>
     </joint>
   </xacro:if>
 

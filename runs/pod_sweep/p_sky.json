@@ -1,0 +1,50 @@
+[
+ {
+  "name": "sky_-0.1_-1.45_-1.1",
+  "lift": -0.1,
+  "elbow": -1.45,
+  "wrist": -1.1,
+  "settle": 5.0,
+  "dwell": 2.5
+ },
+ {
+  "name": "sky_-1.0_-1.55_-0.1",
+  "lift": -1.0,
+  "elbow": -1.55,
+  "wrist": -0.1,
+  "settle": 5.0,
+  "dwell": 2.5
+ },
+ {
+  "name": "sky_0.5_-1.65_-1.5",
+  "lift": 0.5,
+  "elbow": -1.65,
+  "wrist": -1.5,
+  "settle": 5.0,
+  "dwell": 2.5
+ },
+ {
+  "name": "sky_0.4_-1.55_-1.5",
+  "lift": 0.4,
+  "elbow": -1.55,
+  "wrist": -1.5,
+  "settle": 5.0,
+  "dwell": 2.5
+ },
+ {
+  "name": "confirm_chosen",
+  "lift": 0.9,
+  "elbow": 0.46,
+  "wrist": -1.4,
+  "settle": 5.0,
+  "dwell": 2.5
+ },
+ {
+  "name": "search_chosen",
+  "lift": -1.4,
+  "elbow": 0.0,
+  "wrist": 0.4,
+  "settle": 5.0,
+  "dwell": 2.5
+ }
+]
