@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ros2_control configuration for the SO-101 arm.
+
+  Ported from Christopher's URDF-arm branch and adapted to this workspace's
+  conventions. The substantive change is `prefix`: our so101 macro namespaces
+  every link and joint (drivebase.urdf.xacro instantiates it as prefix="arm_"),
+  so the ros2_control joint names have to carry the same prefix or the
+  controller binds to nothing and reports no error.
+
+  Two simulation backends, selected by use_gazebo:
+    - false (default): mock_components/GenericSystem — loopback hardware,
+      commanded positions mirrored back as states, no physics.
+    - true: gz_ros2_control/GazeboSimSystem — physics in Gazebo Sim (Harmonic,
+      the Jazzy pairing). Also emits the <gazebo> plugin tag that runs
+      controller_manager inside the Gazebo process.
+
+  A real Feetech STS3215 hardware interface can be added later as a third
+  <hardware> alternative.
+
+  Joint names and limits come from urdf/so101_macro.xacro, which is GENERATED
+  by scripts/vendor_so101.py — if the upstream import changes a joint name,
+  this file and config/so101_controllers.yaml both have to follow.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- `prefix` must match the prefix passed to the so101 macro, and the joint
+       names in config/so101_controllers.yaml. Default "arm_" matches the
+       drivebase; see that file's header for why there is only one config. -->
+  <xacro:macro name="so101_ros2_control" params="name prefix:=arm_ use_gazebo:=false">
+
+    <ros2_control name="${name}" type="system">
+      <hardware>
+        <xacro:if value="${use_gazebo}">
+          <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+        </xacro:if>
+        <xacro:unless value="${use_gazebo}">
+          <plugin>mock_components/GenericSystem</plugin>
+          <param name="calculate_dynamics">true</param>
+        </xacro:unless>
+      </hardware>
+
+      <xacro:macro name="so101_joint" params="joint_name">
+        <joint name="${prefix}${joint_name}">
+          <command_interface name="position"/>
+          <state_interface name="position">
+            <param name="initial_value">0.0</param>
+          </state_interface>
+          <state_interface name="velocity"/>
+        </joint>
+      </xacro:macro>
+
+      <xacro:so101_joint joint_name="shoulder_pan"/>
+      <xacro:so101_joint joint_name="shoulder_lift"/>
+      <xacro:so101_joint joint_name="elbow_flex"/>
+      <xacro:so101_joint joint_name="wrist_flex"/>
+      <xacro:so101_joint joint_name="wrist_roll"/>
+      <xacro:so101_joint joint_name="gripper"/>
+    </ros2_control>
+
+    <xacro:if value="${use_gazebo}">
+      <gazebo>
+        <plugin filename="gz_ros2_control-system"
+                name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+          <parameters>$(find so101_description)/config/so101_controllers.yaml</parameters>
+        </plugin>
+      </gazebo>
+    </xacro:if>
+
+  </xacro:macro>
+
+</robot>

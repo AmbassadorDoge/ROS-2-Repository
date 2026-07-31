@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Top-level SO-101 description for standalone use (RViz, mock ros2_control,
+  Gazebo arm-only testing). The arm on the actual robot is NOT built from this
+  file — drivebase_description calls the so101 macro directly with the real
+  mount transform. This exists so the arm and its controllers can be brought up
+  and debugged without the whole drivebase.
+
+  The arm attaches to a "world" link through a configurable mount transform.
+  libsdformat converts a root link named "world" into a fixed attachment to the
+  Gazebo world frame.
+
+    xacro so101.urdf.xacro mount_z:=0.26 use_gazebo:=true
+
+  `prefix` defaults to arm_ to match drivebase.urdf.xacro, so the single
+  config/so101_controllers.yaml is valid here and on the robot. See that file.
+-->
+<robot name="so101" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:arg name="prefix"      default="arm_"/>
+
+  <xacro:arg name="mount_x"     default="0.0"/>
+  <xacro:arg name="mount_y"     default="0.0"/>
+  <xacro:arg name="mount_z"     default="0.0"/>
+  <xacro:arg name="mount_roll"  default="0.0"/>
+  <xacro:arg name="mount_pitch" default="0.0"/>
+  <xacro:arg name="mount_yaw"   default="0.0"/>
+
+  <!-- Set to false to omit the ros2_control block (plain display use). -->
+  <xacro:arg name="use_ros2_control" default="true"/>
+  <!-- Set to true for Gazebo Sim: selects the gz_ros2_control hardware plugin
+       and embeds the Gazebo controller_manager plugin tag. -->
+  <xacro:arg name="use_gazebo" default="false"/>
+
+  <xacro:include filename="$(find so101_description)/urdf/so101_macro.xacro"/>
+  <xacro:include filename="$(find so101_description)/urdf/so101.ros2_control.xacro"/>
+
+  <link name="world"/>
+
+  <xacro:so101 prefix="$(arg prefix)" parent="world">
+    <origin xyz="$(arg mount_x) $(arg mount_y) $(arg mount_z)"
+            rpy="$(arg mount_roll) $(arg mount_pitch) $(arg mount_yaw)"/>
+  </xacro:so101>
+
+  <xacro:if value="$(arg use_ros2_control)">
+    <xacro:so101_ros2_control name="so101_arm"
+                              prefix="$(arg prefix)"
+                              use_gazebo="$(arg use_gazebo)"/>
+  </xacro:if>
+
+</robot>

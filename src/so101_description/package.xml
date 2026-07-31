@@ -5,7 +5,8 @@
   <version>0.1.0</version>
   <description>
     SO-101 arm description, vendored from TheRobotStudio/SO-ARM100 and wrapped as a
-    mountable xacro macro.
+    mountable xacro macro, with ros2_control configuration and standalone launch
+    files for bringing the arm up without the drivebase.
   </description>
   <maintainer email="bryanhsu0123@gmail.com">Robot Curiosity</maintainer>
   <license>Apache-2.0</license>
@@ -13,6 +14,18 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <exec_depend>xacro</exec_depend>
+  <exec_depend>urdf</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>joint_trajectory_controller</exec_depend>
+  <exec_depend>joint_state_publisher_gui</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>ros_gz_sim</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>gz_ros2_control</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
