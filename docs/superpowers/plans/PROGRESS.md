@@ -1,9 +1,11 @@
 # Behaviour coordinator — progress
 
 Resume point for `2026-07-30-behaviour-coordinator.md`.
-Last updated 2026-07-30. **Phase 1 complete. Next: Phase 2 (Tasks 6-10).**
+Last updated 2026-07-31. **Phases 1 and 2 complete. Next: Phase 3 (Task 11).**
 
-Branch: **`feature/behaviour-coordinator`** (nothing pushed; `master` untouched)
+Branch: **`experimental/behaviour-coordinator`**, which is pushed and tracking
+`origin`. `master` is untouched. (This file said `feature/...` and "nothing
+pushed" through Task 9; both were stale.)
 
 ---
 
@@ -24,19 +26,40 @@ Branch: **`feature/behaviour-coordinator`** (nothing pushed; `master` untouched)
 Plan corrections found by executing it: `50454aa`, `b696145`, `20936ee`,
 `ca92441`, `2dbf7c3`.
 
-Phase 2 so far: **6** `drivebase_msgs` (`bb23167`), **7** detection adapter
+Phase 2 complete: **6** `drivebase_msgs` (`bb23167`), **7** detection adapter
 (`881a7c5`), **8** pixel-to-point localisation (`a595fed`), **9** URDF-derived
-kinematics — 39 tests green.
+kinematics, **10** closed-form IK — 50 tests green.
 
 ## Next
 
-**Task 10: closed-form IK** — the last of Phase 2. Solve the planar 3R arm
-from `extract_planar_arm`. **Read "The arm's planar frame" below first**; the
-three offsets there are exactly what a naive IK gets wrong, and Task 9 lost a
-session to two of them. Run with `./scripts/dev-native.sh python -m pytest ...`.
+**Task 11: `sim_litter_detector`** — first of Phase 3, and the first task since
+Task 8 that needs the container: it is an `rclpy` node with `cv_bridge`, so
+`dev-native.sh` cannot run it and **this Arch box has no Docker or ROS**. Check
+the Environment section before planning around that.
 
 Execution mode agreed: **subagent-driven**, one agent per task, reviewed
 between tasks.
+
+### What Task 10 changed about the plan
+
+The plan's draft `solve()` was wrong in the two ways this file warns about, and
+both were caught by tests rather than by reading:
+
+- It took `r = hypot(x, y)` from the base origin. That is trap 1 below — the
+  radius must be anchored on the pan axis, so `solve` now uses
+  `arm.bearing()` and `arm.to_planar()` rather than rebuilding the geometry.
+- It never applied `arm.sense`, so every pitch joint came out negated. Invisible
+  at the zero pose, wrong everywhere else, exactly as warned.
+
+`PlanarArm` gained **`bearing(point)`** (the pan command that faces a point) and
+**`from_planar(r, z, pan)`** (the inverse of `to_planar`). The tests are built
+on `from_planar`; the plan's versions constructed targets as
+`(r*cos(pan), r*sin(pan), z)`, which names points the arm cannot reach at that
+bearing and asserts a pan the solver has no reason to return.
+
+`solve` tries **both elbow branches**, elbow-down first. The second is an exact
+solution of the same target, not a relaxation, so preferring one and accepting
+the other costs no accuracy and widens the usable workspace.
 
 ## Measured figures — use these, do not re-derive
 
@@ -52,6 +75,43 @@ between tasks.
 
 Reach reproduces `STATUS.md`: 220 mm below mount (vs 219), gripper 40.1 mm above
 ground (vs 41). The sensor pod did not disturb the arm's kinematics.
+
+### Those radii are `base_footprint` x, NOT the arm's planar r
+
+Found in Task 10, after the first version of a test asked for a point 25 cm
+past the arm's reach and got a truthful `None` back.
+
+`grasp_range`, `grasp_min` and `grasp_max` above were measured as gripper **x
+in the robot frame**. The IK works in planar `r`, measured from the **pan
+axis**, and the two differ by a constant **0.254 m** — the arm sits on the
+front face at x = 0.215, and the pan axis is a further 38.8 mm out.
+
+```
+base_footprint x  ≈  planar r + 0.254
+```
+
+So the 0.287–0.481 m window is planar **r = 0.033–0.227 m**. Feeding a
+robot-frame number to `solve()` as a radius always fails, and fails *quietly*
+— `None` is also what a genuinely unreachable point returns.
+
+**At grasp height the arm is nearly fully extended.** With litter at
+z = −0.2246 in `arm_base_link` (35.4 mm above ground, minus the 260 mm mount),
+the reachable band is only **r ≈ 0.10–0.15 m**, ~50 mm wide, and the approach
+angle is forced to **−90°…−87°** — vertical, with a few degrees of slack. The
+model's deepest tip is z = −0.2248 at r = 0.145, which independently
+reproduces the 224.9 mm figure above.
+
+Two consequences for Task 12 onward:
+
+1. **The descent has no choice of approach angle.** Straight down is the only
+   thing that reaches, so it is not a preference the grasp sequence gets to
+   tune. Higher up there is real freedom — at z = −0.15 the band runs
+   r = 0.10–0.33 — so an intermediate waypoint can be aimed, the grasp cannot.
+2. **The base must be driven into a 50 mm radial band**, which is tighter than
+   the ~0.35 m per-turn drift in `STATUS.md`. This is the same conclusion the
+   design already reached from the other direction — aim the arm with the
+   camera, never by driving to a coordinate — but it now has a width attached.
+   `test_the_grasp_height_band_is_narrow_and_the_approach_is_forced` pins it.
 
 ---
 
@@ -167,9 +227,15 @@ the rest.
    from the axes rather than assumed, and `pan_sense` is `−1` too because the
    pan axis points *down*.
 
-`PlanarArm.to_planar(point, pan)` does all three. Do not hand-roll it — and
-note it takes the pan angle, because `r` is a projection and panning turns the
-direction it projects onto.
+`PlanarArm.to_planar(point, pan)` does all three, `bearing` and `from_planar`
+invert it, and `ik.solve` is built on them. Do not hand-roll any of it — and
+note `to_planar` takes the pan angle, because `r` is a projection and panning
+turns the direction it projects onto.
+
+`from_planar` is only an inverse in one direction: `to_planar` discards the
+component perpendicular to the plane. That is not a practical limit — the tip
+lies on the plane to within the model's own 1e-6 noise, verified across pans,
+because the gripper is centred on the pan axis.
 
 **Tolerances are 1e-5, not 1e-9, and that is the model's fault, not the
 code's.** The CAD export writes pi as `3.14159`, which tilts the pan axis

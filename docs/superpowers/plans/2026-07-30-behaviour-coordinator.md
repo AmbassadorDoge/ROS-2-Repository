@@ -2031,7 +2031,7 @@ git commit -m "Derive SO-101 planar kinematics from the URDF"
   - `JOINT_LIMITS: dict[str, tuple[float, float]]` (from the URDF values in
     the constants table at the top of this plan)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `src/drivebase_behaviour/test/test_ik.py`:
 
@@ -2155,7 +2155,7 @@ def test_pan_points_at_the_target_bearing(arm):
     assert s.shoulder_pan == pytest.approx(0.5, abs=1e-9)
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 cd "$(git rev-parse --show-toplevel)/src/drivebase_behaviour"
@@ -2164,7 +2164,7 @@ python3 -m pytest test/test_ik.py -v
 
 Expected: FAIL — no module named `ik`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `src/drivebase_behaviour/drivebase_behaviour/ik.py`:
 
@@ -2287,7 +2287,7 @@ def solve(
     )
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd "$(git rev-parse --show-toplevel)/src/drivebase_behaviour"
@@ -2299,7 +2299,7 @@ fails, the angle-offset arithmetic in the last block is wrong — compare agains
 `test_planar_model_reproduces_full_fk` from Task 9, which defines the
 convention.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/drivebase_behaviour/drivebase_behaviour/ik.py \

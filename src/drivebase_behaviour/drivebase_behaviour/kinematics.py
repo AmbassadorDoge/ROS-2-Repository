@@ -111,6 +111,35 @@ class PlanarArm:
         dy = point[1] - self.axis_xy[1]
         return (dx * ux + dy * uy, point[2])
 
+    def bearing(self, point) -> float:
+        """The pan command that turns the plane to face `point`.
+
+        The inverse of the pan half of `to_planar`: the angle is measured from
+        the pan *axis*, not the base origin, and `pan_sense` converts a
+        counter-clockwise bearing into a joint command.
+        """
+        dx = point[0] - self.axis_xy[0]
+        dy = point[1] - self.axis_xy[1]
+        zero = math.atan2(self.radial_xy[1], self.radial_xy[0])
+        return self.pan_sense * _wrap(math.atan2(dy, dx) - zero)
+
+    def from_planar(self, r: float, z: float,
+                    pan: float = 0.0) -> tuple[float, float, float]:
+        """Planar (r, z) back to a base-link point, for the arm at `pan`.
+
+        The exact inverse of `to_planar`, and only well defined in that
+        direction: `to_planar` discards the component perpendicular to the
+        plane, so this returns the one point on the plane that maps back. That
+        is not a limitation in practice — the tip lies on the plane to within
+        the model's own 1e-6 noise, because the gripper is centred on the pan
+        axis.
+        """
+        angle = self.pan_sense * pan
+        c, s = math.cos(angle), math.sin(angle)
+        ux = self.radial_xy[0] * c - self.radial_xy[1] * s
+        uy = self.radial_xy[0] * s + self.radial_xy[1] * c
+        return (self.axis_xy[0] + r * ux, self.axis_xy[1] + r * uy, z)
+
     def tip(self, t1: float, t2: float, t3: float) -> tuple[float, float]:
         """Planar (r, z) of the tip, for the three pitch *joint* values."""
         q1, q2, q3 = self.sense * t1, self.sense * t2, self.sense * t3
@@ -125,6 +154,11 @@ class PlanarArm:
             + self.l3 * math.sin(self.a3 + q1 + q2 + q3)
         )
         return (r, z)
+
+
+def _wrap(angle: float) -> float:
+    """To (-pi, pi]."""
+    return math.atan2(math.sin(angle), math.cos(angle))
 
 
 def _rpy_to_matrix(roll: float, pitch: float, yaw: float) -> np.ndarray:
