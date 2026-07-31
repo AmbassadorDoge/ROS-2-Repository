@@ -1,0 +1,90 @@
+# The drivebase-dev:jazzy base image.
+#
+# This used to be a hand-built image on a Mac that existed only on that
+# machine, which made `scripts/dev.sh` unrunnable anywhere else. It is now
+# reproducible from this file: ROS 2 Jazzy + Gazebo Harmonic + every
+# dependency declared across src/*/package.xml.
+#
+# Built automatically by scripts/dev.sh. To rebuild by hand:
+#   docker build -t drivebase-dev:jazzy -f scripts/docker/Dockerfile.base scripts/docker
+FROM osrf/ros:jazzy-desktop-full
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Gazebo Harmonic comes from OSRF's own apt repo, not the ROS one. Jazzy's
+# ros-gz binaries are built against Harmonic, so this has to be in place
+# before ros-jazzy-ros-gz is installed or apt resolves nothing.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      ca-certificates curl gnupg lsb-release \
+ && curl -fsSL https://packages.osrfoundation.org/gazebo.gpg \
+      -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg \
+ && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
+      > /etc/apt/sources.list.d/gazebo-stable.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends gz-harmonic \
+ && rm -rf /var/lib/apt/lists/*
+
+# ROS dependencies. Grouped the way package.xml groups them so a missing
+# entry is traceable back to the package that declared it.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ros-jazzy-ros-gz \
+      ros-jazzy-ros-gz-sim \
+      ros-jazzy-ros-gz-bridge \
+      ros-jazzy-navigation2 \
+      ros-jazzy-nav2-bringup \
+      ros-jazzy-robot-localization \
+      ros-jazzy-robot-state-publisher \
+      ros-jazzy-joint-state-publisher-gui \
+      ros-jazzy-xacro \
+      ros-jazzy-urdfdom-py \
+      ros-jazzy-tf-transformations \
+      ros-jazzy-teleop-twist-keyboard \
+      ros-jazzy-rviz2 \
+      ros-jazzy-ament-copyright \
+      ros-jazzy-ament-flake8 \
+      ros-jazzy-ament-pep257 \
+      python3-colcon-common-extensions \
+      python3-numpy \
+      python3-pytest \
+      python3-transforms3d \
+ && rm -rf /var/lib/apt/lists/*
+
+# Rendering. Gazebo's ogre2 and RViz both need a GL driver inside the
+# container even when /dev/dri is passed through from the host; mesa's
+# userspace half is not shared, only the kernel DRM node is.
+#
+# x11-apps is here for one reason: `xeyes` is the cheapest way to tell a
+# broken X handoff apart from a broken Gazebo, and telling those two apart by
+# reading Gazebo's log is miserable.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libgl1-mesa-dri \
+      libglx-mesa0 \
+      libegl-mesa0 \
+      libglu1-mesa \
+      mesa-utils \
+      mesa-vulkan-drivers \
+      libvulkan1 \
+      x11-apps \
+      xauth \
+ && rm -rf /var/lib/apt/lists/*
+
+# THE CONTAINER RUNS AS UID 1000, NOT ROOT, and that is load-bearing rather
+# than hygiene. Xwayland authorises local clients by peer UID over the socket:
+# there is no Xauthority file anywhere on a Hyprland session, so a root
+# container is refused with "Authorization required, but no authorization
+# protocol specified" and no window ever appears. Matching the host user's UID
+# is what gets X to accept the connection.
+#
+# These directories are created here, owned by 1000, for a Docker-specific
+# reason: an empty named volume inherits the ownership of its mountpoint in
+# the image. Created at run time instead, they would come out root-owned and
+# colcon could not write to them.
+RUN mkdir -p /home/dev /ws/build /ws/install /ws/log \
+ && chown -R 1000:1000 /home/dev /ws \
+ && echo 'source /opt/ros/jazzy/setup.bash' >> /home/dev/.bashrc \
+ && echo '[ -f /ws/install/setup.bash ] && source /ws/install/setup.bash' >> /home/dev/.bashrc \
+ && chown 1000:1000 /home/dev/.bashrc
+
+USER 1000:1000
+ENV HOME=/home/dev

@@ -20,16 +20,28 @@ figures, known issues, and what to do next.
 
 ## Run it
 
+Everything runs in the ROS 2 Jazzy container. `scripts/dev.sh` builds the image
+on first use and wires up the GPU and display:
+
 ```bash
-colcon build && source install/setup.bash
-ros2 launch drivebase_sim sim.launch.py rviz:=true
-ros2 launch drivebase_navigation navigation.launch.py use_sim_time:=true   # 2nd terminal
+bash scripts/dev.sh colcon build --symlink-install
+bash scripts/dev.sh ros2 launch drivebase_sim sim.launch.py rviz:=true
+bash scripts/dev.sh ros2 launch drivebase_navigation navigation.launch.py use_sim_time:=true   # 2nd terminal
 ```
 
 Then set a goal with RViz's *2D Goal Pose*, or drive manually with
-`ros2 run teleop_twist_keyboard teleop_twist_keyboard`.
+`bash scripts/dev.sh ros2 run teleop_twist_keyboard teleop_twist_keyboard`.
 
-Needs a real GPU. Software rendering works but starves the control loops.
+`bash scripts/dev.sh` with no arguments gives an interactive shell with the
+workspace sourced. Build artifacts live in Docker volumes, not in the repo —
+`bash scripts/dev.sh --reset` drops them.
+
+Needs a real GPU; `scripts/dev.sh` passes `/dev/dri` through and falls back to
+llvmpipe only when there is none. Software rendering works but starves the
+control loops, so no timing figure measured under it is worth believing.
+
+The pure-geometry parts (kinematics, detection, localisation) need no ROS at
+all — see `scripts/dev-native.sh`.
 
 ## Sensing
 
@@ -42,6 +54,7 @@ long-range drift; a camera handles litter detection and final approach.
 - [`docs/STATUS.md`](docs/STATUS.md) — state, decisions, next steps, gotchas
 - [`docs/localization_accuracy.md`](docs/localization_accuracy.md) — measured drift, with limitations stated
 - [`docs/power_budget.md`](docs/power_budget.md) — loads, batteries, motor spec, safety
+- [`docs/bom.md`](docs/bom.md) — parts to order, with the specs that are easy to get wrong
 
 ## One thing to know before building on this
 
