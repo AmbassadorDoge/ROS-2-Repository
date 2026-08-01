@@ -105,6 +105,10 @@ class Coordinator(Node):
 
         self.stored_grasp_point: tuple[float, float, float] | None = None
         self._last_logged_state = State.IDLE
+        # Progress along search_pose -> confirm_pose, 0..1. See _track_target.
+        self._track_s = 0.0
+        # Accumulated shoulder_pan while centring in CONFIRMING. See _aim_arm.
+        self._aim_pan = 0.0
 
         self.arm.go_to(self._pose("search_pose"))
         self.machine.start()
@@ -143,6 +147,10 @@ class Coordinator(Node):
             "grasp_max": 0.333,
             "workspace_radius": 0.40,
             "approach_bbox_height_min": 0.22,
+            "track_target_center_y": 0.5,
+            "track_gain": 0.35,
+            "approach_centred_deadband": 0.15,
+            "aim_gain": 0.5,
             "lost_timeout": 2.0,
             "approach_timeout": 30.0,
             "confirm_timeout": 8.0,
@@ -290,7 +298,22 @@ class Coordinator(Node):
         # a proxy, not a distance, and that is fine: range still has to pass
         # grasp_min..grasp_max inside CONFIRMING before anything is grasped.
         bbox_fraction = self._bbox_height_fraction(detection)
-        in_workspace = bbox_fraction >= self.p("approach_bbox_height_min")
+        # Close AND centred. Size alone is not enough: the base is what nulls
+        # bearing, and leaving APPROACHING while still off-bearing hands the arm
+        # a correction it should never have had to make. Measured with the size
+        # gate alone, CONFIRMING was entered at horizontal_error -0.34 - nearly
+        # three times the confirm deadband - and shoulder_pan then swung ~70
+        # degrees hunting for centre, losing and reacquiring targets as it went,
+        # until the confirm timeout gave up. Slightly looser than `deadband` so
+        # the approach does not have to be perfect, only close.
+        centred = (
+            detection is not None
+            and abs(detection.horizontal_error)
+            <= self.p("approach_centred_deadband")
+        )
+        in_workspace = (
+            bbox_fraction >= self.p("approach_bbox_height_min") and centred
+        )
 
         outputs = self.machine.tick(Inputs(
             now=now,
@@ -320,7 +343,8 @@ class Coordinator(Node):
         if outputs.state is State.APPROACHING:
             self.get_logger().info(
                 f"approach: bbox_frac={bbox_fraction:.4f} "
-                f"range={range_m:.3f} err={getattr(detection, 'horizontal_error', float('nan')):.3f}",
+                f"range={range_m:.3f} track_s={self._track_s:.3f} "
+                f"cy={getattr(detection, 'center_y', float('nan')):.3f}",
                 throttle_duration_sec=1.0)
 
         if outputs.cancel_nav_goal:
@@ -349,12 +373,19 @@ class Coordinator(Node):
             # Position controllers hold their last command, so re-sending is
             # idempotent and this self-heals from any dropped message.
             self.arm.go_to(self._pose("search_pose"))
+            self._track_s = 0.0
+            self._aim_pan = 0.0
         elif outputs.state is State.APPROACHING:
             self._servo(detection)
+            self._track_target(detection)
         elif outputs.state in (State.CONFIRMING, State.PICKING, State.STOWING):
             self.cmd_publisher.publish(Twist())
             if outputs.state is State.CONFIRMING:
                 self._aim_arm(detection)
+                self.get_logger().info(
+                    f"confirm: range={range_m:.3f} pan={self._aim_pan:.3f} "
+                    f"err={getattr(detection, 'horizontal_error', float('nan')):.3f}",
+                    throttle_duration_sec=1.0)
 
     # ---------- actions ----------------------------------------------------
 
@@ -384,6 +415,48 @@ class Coordinator(Node):
 
         self.cmd_publisher.publish(command)
 
+    def _track_target(self, detection) -> None:
+        """Tilt the arm during the approach so the target stays in frame.
+
+        Without this the arm holds search_pose the whole way in, the litter
+        drifts down and out of the bottom of the frame as the base closes, and
+        the detector drops it. Measured before this existed: six approaches,
+        every one losing the target at about 0.91 m and timing out. That, not
+        the gate threshold, was what ended every approach.
+
+        Closed-loop on VERTICAL IMAGE POSITION rather than on an estimated
+        distance, so it needs no object-size assumption - unlike the bbox
+        proximity gate, which does.
+
+        The output is constrained to the straight line between search_pose and
+        confirm_pose, both of which are measured and known to produce sane arm
+        geometry. Free-running shoulder_lift alone would not: the two poses
+        differ in lift, elbow AND wrist_flex, so a single joint cannot walk
+        between them. `_track_s` is the position along that line, and at 1.0 it
+        IS confirm_pose, so entering CONFIRMING is a continuation rather than a
+        jump.
+
+        Horizontal error is deliberately left alone here. The base is already
+        steering on it; panning the arm on the same error would put two
+        controllers on one quantity and invite them to fight.
+        """
+        if detection is None or not detection.detected:
+            return
+
+        # Image y grows downward. A target below the aim point means the camera
+        # must look nearer, which is the direction of confirm_pose.
+        error = detection.center_y - self.p("track_target_center_y")
+        self._track_s = max(0.0, min(1.0,
+                                     self._track_s + self.p("track_gain") * error))
+
+        search = self._pose("search_pose")
+        confirm = self._pose("confirm_pose")
+        blended = {
+            joint: search[joint] + self._track_s * (confirm[joint] - search[joint])
+            for joint in search
+        }
+        self.arm.go_to(blended)
+
     def _aim_arm(self, detection) -> None:
         """Bearing first. A single-point ToF only means anything once it is
         pointed at the target - reading range before centring measures the
@@ -397,13 +470,27 @@ class Coordinator(Node):
         """
         if detection is None or not detection.detected:
             return
-        pose = self._pose("confirm_pose")
-        pose["shoulder_pan"] = (
-            pose.get("shoulder_pan", 0.0)
-            - detection.horizontal_error * 1.0
-        )
+
+        # ACCUMULATE the correction; do not set pan proportional to the error.
+        #
+        # The original form was `pan = confirm_pan - error * 1.0`, which is a
+        # positional command driven by a proportional term. It settles wherever
+        # the pan offset happens to produce a consistent error rather than
+        # driving that error to zero, so it parks at a steady-state offset. With
+        # deadband 0.12 the gate never saw a centred frame and CONFIRMING timed
+        # out every time despite range sitting squarely in the grasp window at
+        # 0.26-0.32 m.
+        #
+        # Integrating instead nulls the error regardless of how the normalised
+        # image error maps to radians - which matters, because that mapping
+        # depends on the camera's horizontal FOV and the old gain of 1.0 was
+        # never calibrated against it.
+        self._aim_pan -= self.p("aim_gain") * detection.horizontal_error
         low, high = JOINT_LIMITS["shoulder_pan"]
-        pose["shoulder_pan"] = max(low, min(high, pose["shoulder_pan"]))
+        self._aim_pan = max(low, min(high, self._aim_pan))
+
+        pose = self._pose("confirm_pose")
+        pose["shoulder_pan"] = self._aim_pan
         self.arm.go_to(pose)
 
     def _store_and_grasp(self, point) -> None:
