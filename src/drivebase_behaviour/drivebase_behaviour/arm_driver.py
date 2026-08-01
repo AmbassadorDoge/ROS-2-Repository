@@ -72,35 +72,48 @@ class ArmDriver:
         self._step_deadline = now + hold
 
 
-def grasp_sequence(
-    solution,
-    search_pose: dict[str, float],
-    gripper_open: float,
-    gripper_closed: float,
-    lift_height_offset: float,
-    hold_seconds: float,
-) -> list[tuple[dict[str, float], float]]:
-    """Pre-grasp above the target, descend, close, lift, return to search.
-
-    Pre-grasp comes first with the gripper already open: opening it after
-    arriving would sweep the jaws through the litter and push it away.
-    """
-    reach = {
+def _pose_of(solution) -> dict[str, float]:
+    return {
         "shoulder_pan": solution.shoulder_pan,
         "shoulder_lift": solution.shoulder_lift,
         "elbow_flex": solution.elbow_flex,
         "wrist_flex": solution.wrist_flex,
         "wrist_roll": 0.0,
     }
-    pre_grasp = dict(reach, gripper=gripper_open)
-    # Approach from above by tipping shoulder_lift back; the wrist keeps its
-    # solved angle so the jaws stay vertical through the descent.
-    pre_grasp["shoulder_lift"] = solution.shoulder_lift - lift_height_offset
+
+
+def grasp_sequence(
+    grasp,
+    approach,
+    search_pose: dict[str, float],
+    gripper_open: float,
+    gripper_closed: float,
+    hold_seconds: float,
+) -> list[tuple[dict[str, float], float]]:
+    """Descend vertically onto the target, close, lift vertically, return.
+
+    BOTH POSES ARE SOLVED BY IK. `approach` is the solution for a point
+    directly above `grasp`, so the move between them is a straight vertical
+    line and the jaws come down around the litter rather than across it.
+
+    This used to build the approach by subtracting a constant from
+    shoulder_lift, which reads like a vertical offset and is not one. Measured
+    at the centre of the grasp band: that perturbation raised the tip 56 mm but
+    also swung it 105 mm OUTWARD, so the "descent" was a diagonal rake that
+    swept the open jaws sideways through the litter. In sim it launched a 15 g
+    can 1.6 m across the field, which looked like a physics or collision fault
+    and was neither.
+
+    Pre-grasp comes first with the gripper already open: opening it after
+    arriving would sweep the jaws through the litter just as surely.
+    """
+    reach = _pose_of(grasp)
+    clear = _pose_of(approach)
 
     return [
-        (pre_grasp, hold_seconds),
+        (dict(clear, gripper=gripper_open), hold_seconds),
         (dict(reach, gripper=gripper_open), hold_seconds),
         (dict(reach, gripper=gripper_closed), hold_seconds),
-        (dict(pre_grasp, gripper=gripper_closed), hold_seconds),
+        (dict(clear, gripper=gripper_closed), hold_seconds),
         (dict(search_pose, gripper=gripper_closed), hold_seconds),
     ]

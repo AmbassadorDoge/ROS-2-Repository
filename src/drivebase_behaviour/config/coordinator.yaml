@@ -128,7 +128,10 @@
 
     gripper_open: 1.2
     gripper_closed: 0.0
-    grasp_lift_offset: 0.35
+    # Metres straight up from the grasp point, solved by IK as its own pose so
+    # the descent is vertical. Was a 0.35 rad shoulder_lift perturbation, which
+    # swung the tip 105 mm outward and raked the jaws through the litter.
+    grasp_approach_height: 0.060
     grasp_hold_seconds: 1.5
 
     # NOT MEASURED, and docs/arm_workspace.md explicitly declines to endorse it:

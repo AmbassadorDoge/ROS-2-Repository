@@ -174,7 +174,11 @@ class Coordinator(Node):
             # 72 mm of it and 50 mm gives 123 mm. Relaxing the approach angle
             # does not help - the whole -90..-87 deg range unions to 24 mm.
             "grasp_height": 0.050,
-            "grasp_lift_offset": 0.35,
+            # How far straight up the jaws start from, in METRES. Was a 0.35
+            # rad perturbation of shoulder_lift, which is not a height at all.
+            # 60 mm clears a 70 mm can's rim and is solvable at every radius in
+            # the grasp band - checked across the band, not at one point.
+            "grasp_approach_height": 0.060,
             "grasp_hold_seconds": 1.5,
             "wrist_roll_limit": 1.0,
             "approach_angle": -1.5708,
@@ -564,21 +568,32 @@ class Coordinator(Node):
         if grasp_plane is not None:
             target = (target[0], target[1], grasp_plane)
 
-        solution = solve(
-            self.planar_arm, target, self.p("approach_angle"), JOINT_LIMITS)
+        angle = self.p("approach_angle")
+        solution = solve(self.planar_arm, target, angle, JOINT_LIMITS)
         if solution is None:
             self.get_logger().warning(
                 f"target {target} unreachable, abandoning this piece")
             self.arm.start_sequence([])
             return
 
+        # The point the jaws descend FROM, solved rather than approximated. It
+        # is the same target lifted straight up, so the move between the two is
+        # vertical - see grasp_sequence for what the old approximation did.
+        above = (target[0], target[1], target[2] + self.p("grasp_approach_height"))
+        clearance = solve(self.planar_arm, above, angle, JOINT_LIMITS)
+        if clearance is None:
+            self.get_logger().warning(
+                f"no vertical approach to {target}, abandoning this piece")
+            self.arm.start_sequence([])
+            return
+
         self.stored_grasp_point = target
         self.arm.start_sequence(grasp_sequence(
             solution,
+            clearance,
             self._pose("search_pose"),
             self.p("gripper_open"),
             self.p("gripper_closed"),
-            self.p("grasp_lift_offset"),
             self.p("grasp_hold_seconds"),
         ))
 
