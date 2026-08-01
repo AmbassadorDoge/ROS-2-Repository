@@ -21,7 +21,7 @@ reading code — figures quoted here have a measurement behind them.
 | Nav2 | Done — reaches goals, routes around obstacles |
 | Measurement rig | Done, produced the accuracy numbers |
 | Parts list | Done — `bom.md`, pack decision made, nothing ordered |
-| **Behaviour coordinator** | **In progress** — pure modules and FSM done, node not wired |
+| **Behaviour coordinator** | **In progress** — runs end to end to PICKING; grasp blocked on range control |
 | **Pico firmware** | **Not started** |
 | **Real sensor drivers** | **Not started** |
 | **Battery monitor** | **Not started** |
@@ -214,6 +214,7 @@ Every one of these failed **silently** — no error on either side.
 | Filter snaps to every GPS fix | `gz.msgs.NavSat` carries no covariance; bridged `NavSatFix` arrives all zeros |
 | Nav2 bringup aborts entirely | `collision_monitor` and `docking_server` unconfigured |
 | Robot "drives a square" but goes straight | backgrounded `ros2 topic pub` surviving `kill` — use `scripted_drive` |
+| Vision loops never converge, though the detector, the arm and the range all look healthy | The pod camera imaged the world **sideways**. `arm_wrist_link`'s frame is rolled 90°, so image-right was the robot's *forward* direction and `horizontal_error` meant range, not bearing. `shoulder_pan` had *exactly zero* first-order authority over the error it was being used to null. Fixed 2026-08-01; `scripts/verify_pod_orientation.py` guards it |
 | Outer ultrasonics read a constant 0.08 m | They were staring at the front wheels; sensor band raised to 200 mm |
 | Sweeping `wheel_mu2` changes nothing at all | dartsim takes one friction coefficient and ignores the `mu1`/`mu2` split. The lateral value is discarded on load, with no warning. See issue 1 |
 | Gazebo starts, no window ever opens, `create` loops "Requesting list of world names", `/clock` never published | gz-transport discovers peers over UDP multicast. Under `--net=host` on a host with no multicast route it finds nothing. Server and GUI processes both stay alive, so it does not look like a crash. `GZ_IP=127.0.0.1` — set in `scripts/dev.sh` |

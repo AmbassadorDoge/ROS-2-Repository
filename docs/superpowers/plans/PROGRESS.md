@@ -30,10 +30,29 @@ Phase 2 complete: **6** `drivebase_msgs` (`bb23167`), **7** detection adapter
 (`881a7c5`), **8** pixel-to-point localisation (`a595fed`), **9** URDF-derived
 kinematics, **10** closed-form IK — 50 tests green.
 
-## Next
+## Next — as of 2026-08-01
+
+The mission runs end to end as far as **PICKING**. `APPROACHING → CONFIRMING →
+PICKING` fired seven times across two full runs, having never fired once before
+the pod-orientation fix below. Confirmation settles in 0.5–1.2 s with bearing
+driven to zero.
+
+**The one remaining blocker: nothing nulls RANGE.** The gate into CONFIRMING
+tests apparent size and horizontal centring; neither constrains radius, so the
+base stops wherever it stops. Measured over one run, the four grasp targets came
+out at r = 0.200, 0.039, 0.015 and 0.070 against a reachable band of
+**0.075–0.198** — two of them missed an edge by 2 mm and 5 mm.
+
+The signal for that loop now exists, which it did not before: **vertical image
+error is the radial direction.** At the grasp plane the band maps to vertical
+error **+0.4655** (near edge) → **−0.0828** (far edge), centred **+0.1862**.
+Creeping the base on that during CONFIRMING is the next task, and it is a wide,
+comfortable target rather than a knife-edge.
+
+### Older, still open
 
 **Task 11: `sim_litter_detector` — code complete and working in sim, one
-question open.** Resume there. Details below.
+question open.** Details below.
 
 Execution mode agreed: **subagent-driven**, one agent per task, reviewed
 between tasks.
@@ -166,6 +185,31 @@ Two consequences for Task 12 onward:
    camera, never by driving to a coordinate — but it now has a width attached.
    `test_the_grasp_height_band_is_narrow_and_the_approach_is_forced` pins it.
 
+   **Both of those numbers were superseded on 2026-08-01 — see "The grasp
+   height is a cliff" below.** The band at 35.4 mm is 19 mm, not 50; and it is
+   19 mm only because 35.4 mm is the wrong height to grasp at.
+
+### The grasp height is a cliff, added 2026-08-01
+
+`grasp_range`'s z of **0.0354 m is the arm's lowest reachable height, and that
+is exactly why it is the wrong grasp target.** It sits on the singular edge of
+the workspace, where the radial window collapses:
+
+| Grasp height above ground | Reachable radial window, straight down |
+|---|---|
+| 35.4 mm — the lowest pose | **19 mm** (r = 0.127–0.146) |
+| 40 mm | 72 mm |
+| 50 mm | **123 mm** (r = 0.075–0.198) |
+| 70 mm | 181 mm |
+
+A 4.6 mm rise nearly quadruples the tolerance. Relaxing the approach angle does
+not substitute for it — the whole −90°…−87° range unions to 24 mm. The
+coordinator now grasps at **50 mm** (`grasp_height`), and takes that height from
+the **ground plane**, not from the ToF: the ToF is a single ray, at confirm_pose
+it lands beside the litter, and the point it yields sits on the ground (measured
+1.2 and 1.5 mm below it — the ground read to within its own noise). The ray
+gives bearing and radius; the ground gives height. Mount height comes from tf.
+
 ---
 
 ## Environment
@@ -252,6 +296,33 @@ derives `FX` from that same formula, so the geometry chain will agree.
 other five joints holding stow. This was the gate for all of Phases 2-4.
 
 **`/tof/pod` reports `radiation_type = 1` (INFRARED).**
+
+### The pod camera imaged the world sideways — fixed 2026-08-01
+
+`arm_wrist_link`'s frame is rolled 90° about its forward axis (its +Z points
+along the robot's +Y). A camera mounted square to it produces an image whose
+**right is the robot's forward direction** and whose **down is the robot's
+left**, at every arm pose — the pod sits before `wrist_roll` deliberately, so
+nothing downstream can roll it back.
+
+That inverts the meaning of `horizontal_error`, which the coordinator *and*
+`trash_vision` both read as bearing. Sideways it is **range**, and bearing hides
+in the vertical coordinate. Measured at confirm_pose before the fix: 1 m of
+lateral target motion changed horizontal error by **0.000**, and `shoulder_pan`
+— the joint the aim loop nulls that error with — had first-order authority over
+it of **exactly zero** (the response is quadratic, peaking at pan 0).
+
+So the earlier "overshooting loop, suspect `aim_gain`" reading was wrong. No
+gain would have worked. Fixed by rolling the camera mount +90°, which is a
+rotation about the shared view axis and therefore does **not** move the ToF ray
+— Task 5b's aim result stands untouched.
+
+`scripts/verify_pod_orientation.py` pins the axes and both sensitivities off the
+URDF, no simulator. Run it after touching the pod mount or `arm_wrist_link`.
+
+**Consequence: the aim loop integrates `+=`, not `-=`.** Authority is
+−0.431 /rad at confirm_pose and −0.636 at search_pose, so a positive pan step
+reduces a positive error. `aim_gain` 1.0 closes 43% per tick; 2.32 is deadbeat.
 
 ### Three traps, all silent
 
