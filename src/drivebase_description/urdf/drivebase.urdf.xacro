@@ -347,13 +347,41 @@
          and the localisation maths assumes exactly that. -->
     <xacro:property name="pod_aim_rpy" value="0 0 0"/>
 
+    <!-- The camera is mounted rolled 90 degrees. The ToF is not, and does not
+         need to be: this is a rotation about the shared view axis, so the ray
+         does not move by even a rounding error and the two stay aimed together.
+
+         WHY. arm_wrist_link's own frame is rolled 90 degrees about its forward
+         axis - its +Z points along the robot's +Y, not up. Mounting the camera
+         square to that link therefore produces an image whose RIGHT is the
+         robot's FORWARD direction and whose DOWN is the robot's LEFT. The image
+         is sideways, at every arm pose, and constant, because the pod sits
+         before wrist_roll and nothing in the chain can roll it back.
+
+         That is not cosmetic. Every consumer - this repo's coordinator, and
+         trash_vision, which we do not own - reads `horizontal_error` as BEARING.
+         Sideways, it is RANGE instead, and bearing hides in the vertical
+         coordinate. Measured at confirm_pose before this roll: moving the target
+         1 m sideways changed horizontal error by 0.000, while shoulder_pan - the
+         joint the aim loop uses to null that error - had a first-order authority
+         over it of exactly zero (the response is quadratic, peaking at pan 0).
+         The confirm loop could not converge because there was nothing to
+         converge with.
+
+         With the roll: 1 m sideways moves horizontal error by 3.124, and
+         d(error)/d(pan) is -0.431 /rad at confirm_pose, -0.636 at search_pose.
+         Image up is the robot's forward direction, which is the conventional
+         orientation for a downward-looking camera and the one trash_vision
+         assumes. See scripts/verify_pod_orientation.py, which pins all of it. -->
+    <xacro:property name="pod_camera_roll" value="${pi/2}"/>
+
     <link name="pod_camera_link">
       <xacro:sensor_inertia/>
     </link>
     <joint name="pod_camera_joint" type="fixed">
       <parent link="arm_wrist_link"/>
       <child  link="pod_camera_link"/>
-      <origin xyz="${pod_camera_xyz}" rpy="${pod_aim_rpy}"/>
+      <origin xyz="${pod_camera_xyz}" rpy="${pod_camera_roll} 0 0"/>
     </joint>
 
     <!-- ROS optical convention: z forward, x right, y down. Image pipelines and

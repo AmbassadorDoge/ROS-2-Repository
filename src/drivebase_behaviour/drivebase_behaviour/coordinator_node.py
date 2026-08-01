@@ -150,7 +150,10 @@ class Coordinator(Node):
             "track_target_center_y": 0.5,
             "track_gain": 0.35,
             "approach_centred_deadband": 0.15,
-            "aim_gain": 0.5,
+            # Pan authority is -0.431 rad^-1 at confirm_pose, so this closes 43%
+            # of the bearing error per tick - damped, and settled inside a
+            # second at 10 Hz. 2.32 would be deadbeat; nowhere near it.
+            "aim_gain": 1.0,
             "lost_timeout": 2.0,
             "approach_timeout": 30.0,
             "confirm_timeout": 8.0,
@@ -163,6 +166,14 @@ class Coordinator(Node):
             "stow_pose": [0.0, -1.20, 1.55, 1.10, 0.0, 0.0],
             "gripper_open": 1.2,
             "gripper_closed": 0.0,
+            # NOT the arm's lowest reachable height, which is 0.0354 m. That
+            # figure sits on the singular edge of the workspace, where the
+            # radial window at a straight-down approach is only 19 mm wide -
+            # tighter than the base can be placed, and the reason no grasp was
+            # ever solvable. The window is a cliff, not a gradient: 40 mm gives
+            # 72 mm of it and 50 mm gives 123 mm. Relaxing the approach angle
+            # does not help - the whole -90..-87 deg range unions to 24 mm.
+            "grasp_height": 0.050,
             "grasp_lift_offset": 0.35,
             "grasp_hold_seconds": 1.5,
             "wrist_roll_limit": 1.0,
@@ -485,13 +496,48 @@ class Coordinator(Node):
         # image error maps to radians - which matters, because that mapping
         # depends on the camera's horizontal FOV and the old gain of 1.0 was
         # never calibrated against it.
-        self._aim_pan -= self.p("aim_gain") * detection.horizontal_error
+        #
+        # PLUS, not minus. d(horizontal_error)/d(shoulder_pan) is -0.431 /rad at
+        # confirm_pose - measured off the URDF, see scripts/verify_pod_orientation.py
+        # - so a positive pan step reduces a positive error. Subtracting drives
+        # the pan away from centre until it hits a joint limit. The sign was
+        # unknowable before the pod's mount roll was fixed, because until then
+        # the derivative was zero: pan had no first-order authority over this
+        # error at all.
+        self._aim_pan += self.p("aim_gain") * detection.horizontal_error
         low, high = JOINT_LIMITS["shoulder_pan"]
         self._aim_pan = max(low, min(high, self._aim_pan))
 
         pose = self._pose("confirm_pose")
         pose["shoulder_pan"] = self._aim_pan
         self.arm.go_to(pose)
+
+    def _grasp_plane_z(self) -> float | None:
+        """Grasp height in arm_base_link, or None if the mount height is unknown.
+
+        THE RAY GIVES BEARING AND RADIUS; THE HEIGHT COMES FROM THE GROUND. The
+        pod's ToF is a single ray and at confirm_pose it lands beside the litter
+        rather than on it, so the point it produces sits on the ground - measured
+        across a run, two of three grasp targets came out 1.2 and 1.5 mm below
+        ground, which is the ground plane read to within its own noise. Scaling a
+        camera ray by that range therefore yields the right direction and a
+        useless height. Litter rests ON the ground, so the ground is the better
+        datum for the one coordinate the ToF cannot supply.
+
+        The mount height is read from tf rather than written down, so it tracks
+        the URDF; grasp_height is measured. See docs/arm_workspace.md.
+        """
+        try:
+            mount = self.tf_buffer.lookup_transform(
+                "base_footprint",
+                str(self.get_parameter("arm_base_frame").value),
+                rclpy.time.Time(),
+            )
+        except tf2_ros.TransformException as error:
+            self.get_logger().warning(
+                f"mount height unavailable, grasping at the ranged height: {error}")
+            return None
+        return -mount.transform.translation.z + self.p("grasp_height")
 
     def _store_and_grasp(self, point) -> None:
         """Freeze the target in a static frame, then grasp open-loop.
@@ -513,6 +559,10 @@ class Coordinator(Node):
         t = transform.transform.translation
         q = transform.transform.rotation
         target = _apply_transform(point, (t.x, t.y, t.z), (q.x, q.y, q.z, q.w))
+
+        grasp_plane = self._grasp_plane_z()
+        if grasp_plane is not None:
+            target = (target[0], target[1], grasp_plane)
 
         solution = solve(
             self.planar_arm, target, self.p("approach_angle"), JOINT_LIMITS)
