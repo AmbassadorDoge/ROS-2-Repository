@@ -49,6 +49,25 @@ error **+0.4655** (near edge) → **−0.0828** (far edge), centred **+0.1862**.
 Creeping the base on that during CONFIRMING is the next task, and it is a wide,
 comfortable target rather than a knife-edge.
 
+### Where the mission stands, 2026-08-01 (three fixes in)
+
+Latest 190 s run: **3 entries to PICKING, 2 grasp sequences executed, 0 pickups.**
+Before this session's work, PICKING had never been reached at all.
+
+| Blocker | State |
+|---|---|
+| Pod camera imaged the world sideways | **Fixed** — mount rolled +90°, guarded by `scripts/verify_pod_orientation.py` |
+| Aim loop integrated the wrong way | **Fixed** — `+=`, authority measured at −0.431 /rad |
+| Grasp height taken from a ToF that reads the ground | **Fixed** — ground plane datum, mount height from tf |
+| Pre-grasp raked 105 mm sideways through the litter | **Fixed** — both poses solved by IK, descent is vertical |
+| **Nothing nulls range** | **Open** — the base stops anywhere; grasp radii came out 0.200/0.039/0.015/0.070 against a band of 0.075–0.198 |
+| **`shoulder_lift` has no headroom** | **Open, decision pending** — see `docs/arm_workspace.md` §7 |
+| **Gripper never opens as commanded** | **Open, cause unknown** — 1.200 commanded, 0.937–1.088 achieved across every pose, well inside its 1.745 limit |
+| **Detector locks onto barrier edges** | **Open, diagnosed** — see the `value_min` note under Task 11 |
+
+Next, in order: the range loop (vertical image error → base creep, target
++0.1862); then the gripper opening; then the mount decision.
+
 ### Older, still open
 
 **Task 11: `sim_litter_detector` — code complete and working in sim, one
@@ -80,6 +99,32 @@ interface-faithful.
 | Driving toward `litter_can_a` at (1.8, 0.5) | 257 msgs, **`detected=true` in 148**, all of `LEFT`/`CENTER`/`RIGHT` seen |
 
 So the loop runs end to end and the direction logic exercises every branch.
+
+#### RESOLVED 2026-08-01: the barriers are NOT kept out of the mask
+
+The note below reasons that "the barriers are orange at hue ~13, so the upper
+bound of 10 is what keeps them out." That holds for barrier faces in full light
+and **fails on the shaded edge**, because shading rotates orange toward red.
+
+Sampled from a live mission frame where the detector had locked onto a barrier
+edge with no litter near it, the pixels there are `srgb(82,28,0)`:
+
+| | Value | Threshold | Passes? |
+|---|---|---|---|
+| Hue (OpenCV 0-179) | **10.2** | `hue_high` 10 | marginal — some pixels fall under |
+| Saturation | 255 | `saturation_min` 120 | yes |
+| Value | 82 | `value_min` 60 | **yes** |
+
+So the barrier edge is inside the mask, and the consequence is visible in the
+run: the coordinator repeatedly entered APPROACHING on a blob of
+`bbox_frac ≈ 0.069` that never grew, drove at it, gave up, and re-acquired it —
+six times in one 190 s mission. It was chasing a barrier corner.
+
+**`value_min` is the lever, not `hue_high`.** The offending pixels are dark
+(value 82 of 255) because they are shaded; lit litter is not. Raising
+`value_min` toward ~100 excludes them without touching the hue bound, which is
+already as tight as it can safely go. Not yet changed — it needs a run to
+confirm it does not also drop genuine litter in shadow.
 
 #### The one open question: the hue range
 

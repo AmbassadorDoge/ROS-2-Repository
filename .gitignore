@@ -28,3 +28,5 @@ __pycache__/
 # per-window capture here, so these frame the whole screen, terminal included.
 # Commit the cropped viewport (runs/shots/crop-*.jpg), never these.
 runs/shots/*.png
+runs/shots/mission/
+runs/shots/gz/
