@@ -3382,7 +3382,7 @@ git commit -m "Add detection source adapters"
 - Consumes: every module from Tasks 7-14
 - Produces: the `coordinator` executable
 
-- [ ] **Step 1: Write the config**
+- [x] **Step 1: Write the config**
 
 `src/drivebase_behaviour/config/coordinator.yaml`. **Replace every value
 marked `# MEASURED` with the figure from `docs/arm_workspace.md` (Task 5).**
@@ -3457,7 +3457,7 @@ marked `# MEASURED` with the figure from `docs/arm_workspace.md` (Task 5).**
     approach_angle: -1.5708
 ```
 
-- [ ] **Step 2: Implement the node**
+- [x] **Step 2: Implement the node**
 
 `src/drivebase_behaviour/drivebase_behaviour/coordinator_node.py`:
 
@@ -3916,7 +3916,7 @@ if __name__ == "__main__":
     main()
 ```
 
-- [ ] **Step 3: Write the launch file**
+- [x] **Step 3: Write the launch file**
 
 `src/drivebase_behaviour/launch/coordinator.launch.py`:
 
@@ -3981,7 +3981,7 @@ def generate_launch_description() -> LaunchDescription:
     ])
 ```
 
-- [ ] **Step 4: Build and verify the node starts**
+- [x] **Step 4: Build and verify the node starts**
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
@@ -3997,7 +3997,7 @@ kill %1
 Expected: node listed, parameter reads `json_string`. It will warn that the
 Nav2 server is unavailable — correct, nothing else is running yet.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/drivebase_behaviour/drivebase_behaviour/coordinator_node.py \

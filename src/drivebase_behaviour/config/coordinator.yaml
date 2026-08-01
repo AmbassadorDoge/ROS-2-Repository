@@ -1,0 +1,113 @@
+# Behaviour coordinator parameters.
+#
+# Values marked MEASURED come from docs/arm_workspace.md, which supersedes the
+# provisional figures in the implementation plan. Where this file departs from
+# that plan, the reason is given — the plan was written before the workspace
+# sweep and Task 5b's correction.
+
+/**:
+  ros__parameters:
+    # Which detector interface to consume. Change to "typed" once
+    # trash_vision publishes drivebase_msgs/LitterDetection.
+    detection_interface: "json_string"
+    detection_topic: "/vision/target"
+
+    camera_info_topic: "/pod_camera/camera_info"
+    tof_topic: "/tof/pod"
+    camera_optical_frame: "pod_camera_optical_frame"
+    static_frame: "odom"
+    arm_base_frame: "arm_base_link"
+
+    tick_hz: 10.0
+
+    # Patrol. Flattened [x, y, x, y, ...] in the static frame - ROS 2 params
+    # have no nested-array type.
+    waypoints: [2.0, 0.0, 4.0, 1.5, 2.0, 3.0, 0.0, 1.5]
+    loop_patrol: true
+
+    # Detection gating.
+    min_confidence: 0.4
+    deadband: 0.12
+    detection_stale_after: 0.5
+
+    # Confirmation gate. Fallback ranges are crude, so they need more frames.
+    confirm_frames: 5
+    confirm_frames_fallback: 10
+
+    # ToF limits, matching the gpu_lidar in gazebo.xacro.
+    tof_min_range: 0.04
+    tof_max_range: 4.0
+
+    # NOT MEASURED. The plan calls for one observation of a litter model at a
+    # known distance; that observation has not been made. These are placeholders
+    # and the fallback range they produce should not be trusted - which is
+    # exactly why confirm_frames_fallback demands twice the evidence.
+    fallback_reference_height_px: 60.0
+    fallback_reference_range_m: 1.0
+
+    # Grasp window, in CAMERA RANGE metres.
+    #
+    # CAUTION - unit mismatch, flagged rather than hidden. docs/arm_workspace.md
+    # measures the usable ground-grasp span as 0.287 m to 0.481 m *from
+    # base_link along x*. The state machine compares these against the
+    # camera-to-target range, which is a different quantity. The values below
+    # are that window converted to camera range by scaling along the beam at the
+    # confirm pose, where a measured ToF of 0.2716 m corresponds to a ground
+    # intersection at x = 0.392 m:
+    #     0.287 / 0.392 * 0.2716 = 0.199
+    #     0.481 / 0.392 * 0.2716 = 0.333
+    # The scaling assumes the beam is straight and the ground flat, which is
+    # true here but makes these DERIVED, not measured. Verify in Task 16.
+    grasp_min: 0.199
+    grasp_max: 0.333
+    # Enter CONFIRMING a little before the target reaches the far edge of the
+    # window, so the gate has frames to work with. Must exceed grasp_max.
+    workspace_radius: 0.40
+
+    # Timeouts. Every one of these falls back to resuming the patrol.
+    lost_timeout: 2.0
+    approach_timeout: 30.0
+    confirm_timeout: 8.0
+
+    # Approach servo. linear_speed is never zero while correcting heading:
+    # arcs, not point turns. RPP and the power budget both prefer arcs.
+    #
+    # (The plan also justified this by the base being unable to point-turn more
+    # than once per run. That bug is fixed as of 2026-07-31 - see STATUS.md #1 -
+    # so arcs are now a power and controller preference, not a workaround.)
+    approach_linear_speed: 0.22
+    approach_min_linear_speed: 0.06
+    approach_angular_gain: 1.2
+    approach_max_angular_speed: 0.8
+
+    # Arm poses, [pan, lift, elbow, wrist_flex, wrist_roll, gripper].
+    #
+    # MEASURED. Search pose puts the pod's ground intersection at x = 1.168 m
+    # ahead of base_link - far enough out to spot litter while driving.
+    search_pose: [0.0, -1.4, 0.0, 0.4, 0.0, 0.0]
+    # MEASURED, and this is a DEPARTURE FROM THE PLAN. The plan aimed the arm
+    # from search_pose during CONFIRMING, but search_pose looks at ground
+    # 1.168 m ahead - nowhere near the grasp window, so the range gate could
+    # never have passed. Task 5b found this pose by sweeping the commanded joint
+    # space: its beam lands at x = 0.392 m, inside the 0.287-0.481 m window,
+    # with ToF 0.2716 m against a tf prediction of 0.2715 m.
+    confirm_pose: [0.0, 0.9, 0.46, -1.40, 0.0, 0.0]
+    stow_pose: [0.0, -1.20, 1.55, 1.10, 0.0, 0.0]
+
+    gripper_open: 1.2
+    gripper_closed: 0.0
+    grasp_lift_offset: 0.35
+    grasp_hold_seconds: 1.5
+
+    # NOT MEASURED, and docs/arm_workspace.md explicitly declines to endorse it:
+    # it is a harness-routing decision and there is no harness yet. The URDF
+    # hard limit is -2.74385..+2.84121 rad. Keeping the plan's provisional 1.0
+    # as the conservative choice.
+    #
+    # One thing IS measured and worth knowing: the pod hangs off arm_wrist_link,
+    # upstream of wrist_roll, so sweeping wrist_roll -2.5..+2.5 rad moved the
+    # ToF reading by under 2 mm. Rolling the wrist does not move the camera.
+    wrist_roll_limit: 1.0
+
+    # Straight down onto the litter.
+    approach_angle: -1.5708
