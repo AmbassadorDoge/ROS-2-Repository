@@ -62,7 +62,39 @@
     grasp_max: 0.333
     # Enter CONFIRMING a little before the target reaches the far edge of the
     # window, so the gate has frames to work with. Must exceed grasp_max.
+    # NOTE: no longer used for the approach gate - see approach_bbox_height_min.
     workspace_radius: 0.40
+
+    # APPROACHING -> CONFIRMING gate: apparent bbox height as a fraction of
+    # frame height. Proximity proxy, not a distance.
+    #
+    # Range cannot gate this. Through the approach the arm holds search_pose,
+    # whose beam lands 1.168 m ahead of base_link, so the range read is the
+    # distance to that ground point and stays near 1.0-1.1 m however close the
+    # base gets. Measured over six approaches. The range only enters the grasp
+    # window from confirm_pose, which is not adopted until CONFIRMING has been
+    # entered - the gate was waiting on a measurement it made impossible.
+    #
+    # Derived, from the pinhole relation
+    #     fraction = fy * object_height / (d * image_height)
+    # with fy = 493.79 and image_height = 480 (both read from CameraInfo) and
+    # the test-field can 0.070 m tall:
+    #     fraction = 0.0720 / d
+    # Targeting d = grasp_max = 0.333 m gives 0.216, rounded to 0.22.
+    #
+    # TWO CAVEATS, both real:
+    #
+    # 1. THIS CANNOT FIRE YET. Measured peak during an approach is 0.0792,
+    #    i.e. the target is lost at d = 0.91 m - about 3x too far. The binding
+    #    problem is not the gate, it is that nothing tracks the target: the arm
+    #    is static through the approach so the litter drifts out of frame. The
+    #    gate is correct and the tracking is missing.
+    # 2. The calibration is object-size specific. It assumes 0.070 m tall
+    #    litter. Real litter varies, so this proxy degrades on anything much
+    #    larger or smaller. It gates the approach only - the ToF still has to
+    #    pass grasp_min..grasp_max inside CONFIRMING before anything is
+    #    grasped.
+    approach_bbox_height_min: 0.22
 
     # Timeouts. Every one of these falls back to resuming the patrol.
     lost_timeout: 2.0

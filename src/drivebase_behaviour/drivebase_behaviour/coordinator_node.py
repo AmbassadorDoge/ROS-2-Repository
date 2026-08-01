@@ -142,6 +142,7 @@ class Coordinator(Node):
             "grasp_min": 0.199,
             "grasp_max": 0.333,
             "workspace_radius": 0.40,
+            "approach_bbox_height_min": 0.22,
             "lost_timeout": 2.0,
             "approach_timeout": 30.0,
             "confirm_timeout": 8.0,
@@ -242,6 +243,20 @@ class Coordinator(Node):
 
         return point_from_range(ray, range_m), used_fallback
 
+    def _bbox_height_fraction(self, detection) -> float:
+        """Bbox height as a fraction of frame height. 0.0 when unknowable.
+
+        bbox arrives in pixels; the frame height comes from CameraInfo rather
+        than being assumed, so a resolution change cannot silently rescale the
+        approach gate.
+        """
+        if detection is None or not detection.detected:
+            return 0.0
+        if self.camera_info is None or not self.camera_info.height:
+            return 0.0
+        return (detection.bbox[3] - detection.bbox[1]) / float(
+            self.camera_info.height)
+
     def _tick(self) -> None:
         now = self._now()
         self.arm.update(now)
@@ -258,9 +273,24 @@ class Coordinator(Node):
             # for it.
             detection = replace(detection, range_is_fallback=True)
 
-        in_workspace = (
-            range_valid and range_m <= self.p("workspace_radius")
-        )
+        # Proximity for the APPROACHING -> CONFIRMING gate comes from apparent
+        # size in frame, NOT from the ToF range.
+        #
+        # Range cannot do this job. Through the whole approach the arm is held
+        # at search_pose, whose beam lands on the ground 1.168 m ahead of
+        # base_link, so the range read is the distance to that ground point and
+        # sits near 1.0-1.1 m however close the base gets. Measured: six
+        # approaches in one run, every one reporting in_workspace=False at
+        # range 0.96-1.12 m until the target drifted out of frame. The range
+        # only enters the grasp window from confirm_pose, which is not adopted
+        # until CONFIRMING has already been entered — the gate was waiting on a
+        # measurement that could not be taken until after it opened.
+        #
+        # A bbox that fills more of the frame means the target is nearer. It is
+        # a proxy, not a distance, and that is fine: range still has to pass
+        # grasp_min..grasp_max inside CONFIRMING before anything is grasped.
+        bbox_fraction = self._bbox_height_fraction(detection)
+        in_workspace = bbox_fraction >= self.p("approach_bbox_height_min")
 
         outputs = self.machine.tick(Inputs(
             now=now,
@@ -284,8 +314,14 @@ class Coordinator(Node):
             self.get_logger().info(
                 f"{self._last_logged_state.value} -> {outputs.state.value} "
                 f"(range={range_m:.3f} valid={range_valid} "
-                f"in_workspace={in_workspace})")
+                f"bbox_frac={bbox_fraction:.4f} in_workspace={in_workspace})")
             self._last_logged_state = outputs.state
+
+        if outputs.state is State.APPROACHING:
+            self.get_logger().info(
+                f"approach: bbox_frac={bbox_fraction:.4f} "
+                f"range={range_m:.3f} err={getattr(detection, 'horizontal_error', float('nan')):.3f}",
+                throttle_duration_sec=1.0)
 
         if outputs.cancel_nav_goal:
             self._cancel_nav_goal()
