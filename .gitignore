@@ -23,3 +23,8 @@ __pycache__/
 .vscode/
 .idea/
 .DS_Store
+
+# Full-desktop grabs from scripts/capture_arm_poses.py. The compositor has no
+# per-window capture here, so these frame the whole screen, terminal included.
+# Commit the cropped viewport (runs/shots/crop-*.jpg), never these.
+runs/shots/*.png

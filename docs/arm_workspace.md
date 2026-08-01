@@ -324,6 +324,102 @@ the design spec said. §2 above now fills it.
 
 ---
 
+## 7. Mount height: 260 mm as built, 224 mm as a candidate
+
+Added 2026-08-01. **The URDF default is still 0.260 and nothing here has been
+adopted.** `arm_mount_height` is now a xacro arg, so both columns come from one
+model:
+
+```bash
+bash scripts/dev-native.sh python scripts/measure_arm_workspace.py            # both
+bash scripts/dev-native.sh python scripts/measure_arm_workspace.py --mount 0.224
+```
+
+### Why 224 mm
+
+The reach floor is **224.4 mm below the mount**, wherever the mount is. At
+260 mm the gripper therefore bottoms out 35.6 mm above the ground and *cannot
+touch it at all* — so flat litter is not merely hard to pick up, it is outside
+the workspace. `litter_wrapper` in the test field is 12 mm tall.
+
+What actually governs tolerance is **depth below the mount, not mount height**.
+Radial tolerance collapses as the target approaches the reach floor, so the two
+numbers trade against each other directly:
+
+| Grasp height | Band at 260 mm | Band at 224 mm |
+|---|---|---|
+| 0 mm (ground) | out of reach | 32 mm |
+| **12 mm** (the wrapper) | **out of reach** | **115 mm** |
+| 20 mm | out of reach | 144 mm |
+| 35.4 mm | out of reach | 184 mm |
+| 50 mm (a can) | 123 mm | 211 mm |
+| 70 mm | 181 mm | 237 mm |
+
+`shoulder_lift` margin to its +1.745 limit, at band centre, goes from
+**+0.136 rad** (260 mm, grasping at 50 mm) to **+0.448**. At 224 mm the arm
+stops working at the end of its travel everywhere it can grasp, which is the
+condition §5 above is really describing.
+
+Raising the grasp height in software is *geometrically identical* to lowering
+the mount by the same amount — but it is capped by the litter, and it cannot
+help the 12 mm wrapper at all. That is the whole argument for the bracket.
+
+### What does not break
+
+- **Ultrasonic band.** 24.0 mm of clearance at 224 mm (60.0 mm at 260 mm). The
+  arm base extends 2.4 mm below its mount point and 69.6 mm above it, so it does
+  not reach down into the band. Below ~215 mm this stops being true.
+- **Patrol.** The coordinator parks at `search_pose`, whose tip is 651 mm up at
+  224 mm — nowhere near the sensors. (`stow_pose` does sit in front of the band,
+  but that is already true at 260 mm and the coordinator never commands it.)
+- **Ground clearance and wheels.** Unaffected; the arm works ahead of the front
+  face and above the 120 mm wheel tops.
+
+### Section 5, and the measurements that change
+
+**These are ideal commanded kinematics.** The figures below are FK, not driven
+poses, so they do not include the droop of §5 — and that difference is not
+negligible at the two calibrated poses. Both discrepancies with the recorded
+sim figures run the way droop predicts, which is the cross-check:
+
+| | Recorded in sim | FK here (260 mm) | Direction |
+|---|---|---|---|
+| `search_pose` ToF range | 1.08–1.14 m | 1.021 m | Droop tilts the arm back; beam lands further out |
+| `confirm_pose` ToF range | 0.2716 m | 0.284 m | Droop reaches further down; beam lands nearer |
+
+So **re-measure in sim before adopting any of this** — do not paste the FK
+numbers into `coordinator.yaml`.
+
+Every figure the coordinator is calibrated on, and what it becomes:
+
+| Where | Value | At 260 mm | At 224 mm (FK) |
+|---|---|---|---|
+| `coordinator.yaml` `grasp_min` / `grasp_max` | camera range window | 0.199 / 0.333 | re-measure; FK band is 0.237–0.253 at a 12 mm grasp |
+| `coordinator.yaml` `grasp_height` | grasp plane | 0.050 | 0.012–0.020 becomes reachable |
+| `coordinator.yaml` `confirm_pose` | pose | `[0, 0.9, 0.46, −1.40, 0, 0]` | re-run `scripts/pod_aim_search.py` — the beam intercept moves 1.5 mm but the pose's *height* above the target changes by 36 mm |
+| `coordinator.yaml` `search_pose` | pose | `[0, −1.4, 0, 0.4, 0, 0]` | ToF ground intercept 1.064 m → 1.008 m |
+| `coordinator_node.py` `approach_bbox_height_min` | 0.22 | tuned at 260 mm | the pod rides 36 mm lower, so apparent size at a given range changes |
+| §1, §3 of this document | driven tf | as recorded | all of it |
+
+### Putting it back
+
+`arm_mount_height` defaults to **0.260**, so reverting is deleting an override,
+not editing geometry:
+
+1. Drop any `arm_mount_height:=0.224` from launch files and command lines. The
+   default restores the built configuration; no URDF edit is involved.
+2. `coordinator.yaml` is the only other file that would carry adopted values.
+   Restore `grasp_height: 0.050`, `grasp_min: 0.199`, `grasp_max: 0.333` and
+   both poses from the table above.
+3. Re-run `bash scripts/dev-native.sh python scripts/verify_pod_orientation.py`
+   and the 67 unit tests. Neither depends on mount height, so both passing after
+   a revert confirms nothing else drifted.
+
+Nothing in §1–§6 was re-measured for 224 mm. Those sections remain the record of
+the **260 mm** build, and are not superseded by this one.
+
+---
+
 ## Limitations
 
 Simulation only, and under software rendering. Geometry, tf and kinematics are
