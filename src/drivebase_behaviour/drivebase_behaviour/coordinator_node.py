@@ -104,6 +104,7 @@ class Coordinator(Node):
         self.planar_arm = self._load_arm_model()
 
         self.stored_grasp_point: tuple[float, float, float] | None = None
+        self._last_logged_state = State.IDLE
 
         self.arm.go_to(self._pose("search_pose"))
         self.machine.start()
@@ -275,6 +276,17 @@ class Coordinator(Node):
         self.nav_succeeded = False
         self.nav_aborted = False
 
+        # Log every transition. Without this the mission is unobservable: the
+        # states that matter (APPROACHING, CONFIRMING) can come and go between
+        # two waypoint lines and leave no trace, which is exactly what made the
+        # first end-to-end run so hard to read.
+        if outputs.state is not self._last_logged_state:
+            self.get_logger().info(
+                f"{self._last_logged_state.value} -> {outputs.state.value} "
+                f"(range={range_m:.3f} valid={range_valid} "
+                f"in_workspace={in_workspace})")
+            self._last_logged_state = outputs.state
+
         if outputs.cancel_nav_goal:
             self._cancel_nav_goal()
         if outputs.send_next_waypoint:
@@ -285,7 +297,23 @@ class Coordinator(Node):
             self.arm.start_sequence(
                 [(self._pose("search_pose"), self.p("grasp_hold_seconds"))])
 
-        if outputs.state is State.APPROACHING:
+        if outputs.state is State.NAVIGATING and self.arm.sequence_done:
+            # Re-assert the search pose every tick rather than once at startup.
+            #
+            # Publishing it in __init__ does not work: the publisher is created
+            # microseconds earlier, discovery has not connected the gz
+            # JointPositionController subscriber yet, and a volatile publisher
+            # with no subscriber silently drops the message. Nothing re-sent it,
+            # so the arm sat in its URDF stow pose for the whole patrol, the pod
+            # camera pointed nowhere useful, and the detector reported
+            # `detected: false` for every frame of a run that otherwise looked
+            # healthy. Measured: joints held at stow (-1.202/1.600/1.102)
+            # instead of search (-1.4/0.0/0.4).
+            #
+            # Position controllers hold their last command, so re-sending is
+            # idempotent and this self-heals from any dropped message.
+            self.arm.go_to(self._pose("search_pose"))
+        elif outputs.state is State.APPROACHING:
             self._servo(detection)
         elif outputs.state in (State.CONFIRMING, State.PICKING, State.STOWING):
             self.cmd_publisher.publish(Twist())

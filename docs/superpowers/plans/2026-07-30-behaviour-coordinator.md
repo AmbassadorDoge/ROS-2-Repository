@@ -4012,7 +4012,7 @@ git commit -m "Add the coordinator node, config and launch"
 
 **Files:** none created; this validates Tasks 1-15.
 
-- [ ] **Step 1: Bring the whole stack up**
+- [x] **Step 1: Bring the whole stack up**
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
@@ -4025,7 +4025,7 @@ sleep 15
 ros2 launch drivebase_behaviour coordinator.launch.py use_sim_time:=true &
 ```
 
-- [ ] **Step 2: Check the interface wiring before judging behaviour**
+- [x] **Step 2: Check the interface wiring before judging behaviour**
 
 ```bash
 # This project's recurring silent failure is a topic carrying two types.
@@ -4040,7 +4040,7 @@ Expected: one type per topic; camera near 15 Hz; ToF near 20 Hz. **A topic with
 two types means stop and fix that first** — everything downstream will look
 broken for the wrong reason.
 
-- [ ] **Step 3: Watch a full cycle**
+- [x] **Step 3: Watch a full cycle**
 
 ```bash
 ros2 topic echo /vision/direction &
@@ -4051,7 +4051,7 @@ In the coordinator's log, expect the sequence: `Waypoint 0` → detection →
 approach (base slows and arcs) → confirming (base stops, `shoulder_pan` moves)
 → grasp sequence → back to a waypoint.
 
-- [ ] **Step 4: Record what actually happened**
+- [x] **Step 4: Record what actually happened**
 
 Note, for `docs/STATUS.md` in Task 17:
 
@@ -4066,13 +4066,13 @@ Note, for `docs/STATUS.md` in Task 17:
 and a small object is unreliable; a failed grasp with a successful approach is
 a real and useful result, not something to tune away.
 
-- [ ] **Step 5: Shut down**
+- [x] **Step 5: Shut down**
 
 ```bash
 kill %1 %2 %3 2>/dev/null
 ```
 
-- [ ] **Step 6: Commit any fixes found**
+- [x] **Step 6: Commit any fixes found**
 
 ```bash
 git add -A && git commit -m "Fix issues found in end-to-end simulation run"
