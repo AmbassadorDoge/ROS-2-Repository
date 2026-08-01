@@ -369,6 +369,18 @@ class Coordinator(Node):
         if outputs.store_grasp_point and point is not None:
             self._store_and_grasp(point)
         if outputs.start_stow:
+            # REVIEW 2026-08-01: STOWING does nothing, and the litter is never
+            # deposited. grasp_sequence already ends at (search_pose,
+            # gripper_closed), so this re-commands the pose the arm is holding
+            # and burns grasp_hold_seconds doing it. Nothing reopens the jaws,
+            # so the first thing that releases a piece is the NEXT grasp's
+            # opening step - dropping it in mid-air wherever the base happens to
+            # be standing when it starts on the piece after it.
+            #
+            # The `stow_pose` parameter looks like it was meant to be the answer
+            # and is read nowhere. The plan does not specify a deposit either,
+            # so this is a hole in the mission rather than a drift from it: an
+            # onboard bin and a release step are both unbuilt. See docs/qa F2.
             self.arm.start_sequence(
                 [(self._pose("search_pose"), self.p("grasp_hold_seconds"))])
 
@@ -598,6 +610,14 @@ class Coordinator(Node):
         ))
 
     def _send_next_waypoint(self) -> None:
+        # REVIEW 2026-08-01: this spins at tick_hz once a finite patrol ends.
+        # The index is incremented before the bounds test, and the state machine
+        # emits send_next_waypoint on EVERY tick while no goal is active, so
+        # with loop_patrol false and the list exhausted waypoint_index grows
+        # without bound and "Patrol complete" logs ten times a second forever.
+        # Default is loop_patrol true, so this is off the hot path but live on a
+        # supported setting. Needs a terminal state, or a latched flag the
+        # machine can see. See docs/qa F3.
         self.waypoint_index += 1
         if self.waypoint_index >= len(self.waypoints):
             if not bool(self.get_parameter("loop_patrol").value):
@@ -615,6 +635,13 @@ class Coordinator(Node):
         goal.pose.pose.position.y = float(y)
         goal.pose.pose.orientation.w = 1.0
 
+        # REVIEW 2026-08-01: this blocks the timer callback for up to 2 s, and
+        # every callback on this node shares one mutually exclusive group, so
+        # the block stalls the whole coordinator: arm.update stops advancing the
+        # grasp sequence, detections back up, /cmd_vel_nav goes quiet. Pair it
+        # with the spin above and a Nav2 outage means blocking 2 s per tick
+        # indefinitely. server_is_ready() is the non-blocking test; the wait
+        # belongs at startup, once. See docs/qa F4.
         if not self.nav_client.wait_for_server(timeout_sec=2.0):
             self.get_logger().warning("Nav2 action server unavailable")
             return
@@ -662,6 +689,14 @@ def _apply_transform(point, translation, quaternion):
 def main(arguments=None) -> None:
     rclpy.init(args=arguments)
     node = Coordinator()
+    # REVIEW 2026-08-01: this buys no parallelism. Every callback here uses the
+    # node's default mutually exclusive group, so the executor serialises them
+    # anyway - and that serialisation is exactly what makes the unguarded
+    # cross-callback state (nav_goal_handle, nav_succeeded, nav_aborted, written
+    # from action callbacks and read in _tick) safe without a lock. It is
+    # load-bearing for correctness and says so nowhere, which stands out in a
+    # file where every other non-obvious choice carries a paragraph. Swapping in
+    # a reentrant group or a second thread would introduce a real race.
     executor = MultiThreadedExecutor()
     executor.add_node(node)
     try:

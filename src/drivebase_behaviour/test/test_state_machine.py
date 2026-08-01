@@ -228,7 +228,14 @@ def test_grasp_completion_stows_then_resumes_the_patrol():
 
 def test_a_failed_pickup_never_wedges_the_mission():
     """Every terminal path must return to NAVIGATING. This is the invariant
-    that keeps one bad piece of litter from ending the run."""
+    that keeps one bad piece of litter from ending the run.
+
+    REVIEW 2026-08-01: the two cases below are APPROACHING and CONFIRMING, which
+    are the only two states that HAVE a timeout. PICKING and STOWING, the two
+    that do not, are the ones this name promises to cover and does not. A
+    pick_timeout/stow_timeout added to Config should arrive with two more cases
+    here. See docs/qa/2026-08-01-behaviour-coordinator-review.md F1.
+    """
     for build in (
         lambda: (approach(StateMachine(CONFIG)),
                  blank(100.0, detection=unseen(100.0))),

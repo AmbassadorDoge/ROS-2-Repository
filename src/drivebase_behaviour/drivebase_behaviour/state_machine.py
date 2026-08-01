@@ -7,6 +7,14 @@ must stay free of ROS imports.
 
 THE INVARIANT: every state has a timeout whose fallback is resuming the patrol.
 A failed pickup loses one piece of litter. It must never wedge the mission.
+
+REVIEW 2026-08-01: the invariant above is currently enforced for APPROACHING and
+CONFIRMING only. PICKING and STOWING leave on `arm_sequence_done` alone and
+Config carries no timeout for either. What actually bounds them today lives in
+another file - ArmDriver.update advances on deadlines and start_sequence([])
+completes immediately - so a sequence always finishes in about
+5 x grasp_hold_seconds. That makes this module's headline promise depend on
+arm_driver.py keeping a property nothing here asserts. See docs/qa/2026-08-01-behaviour-coordinator-review.md F1.
 """
 
 from dataclasses import dataclass, field
@@ -57,6 +65,11 @@ class Outputs:
     cancel_nav_goal: bool = False
     send_next_waypoint: bool = False
     store_grasp_point: bool = False
+    # REVIEW 2026-08-01: start_grasp is set below and read by nobody. The
+    # coordinator triggers the grasp off store_grasp_point instead, so these two
+    # are one signal wearing two names, and the only thing asserting start_grasp
+    # is a test. Drop it or make the coordinator use it; carrying both invites a
+    # future edit that sets one and expects the other to fire.
     start_grasp: bool = False
     start_stow: bool = False
 
@@ -158,6 +171,11 @@ class StateMachine:
             if self._confirm_attempts >= 2:
                 self._enter(State.NAVIGATING, inputs.now)
                 return Outputs(state=self.state, send_next_waypoint=True)
+            # REVIEW 2026-08-01: this save/restore is a no-op. _enter clears
+            # _confirm_attempts only on entry to NAVIGATING, never APPROACHING,
+            # so there is nothing here to protect the counter from. It reads as
+            # load-bearing, which is worse than absent: it asserts a behaviour
+            # _enter does not have, and the next reader will believe it.
             attempts = self._confirm_attempts
             self._enter(State.APPROACHING, inputs.now)
             self._confirm_attempts = attempts
@@ -187,6 +205,13 @@ class StateMachine:
         return Outputs(
             state=self.state, store_grasp_point=True, start_grasp=True)
 
+    # REVIEW 2026-08-01: no timeout here or in _stowing, unlike every other
+    # state. An arm sequence that never reports done wedges the mission with the
+    # base stopped, which is the one outcome the module docstring rules out.
+    # Safe today only because ArmDriver bounds every sequence by construction.
+    # The fix is a pick_timeout/stow_timeout in Config falling back to
+    # NAVIGATING - and extending test_a_failed_pickup_never_wedges_the_mission,
+    # which currently exercises only the two states that already have one.
     def _picking(self, inputs: Inputs) -> Outputs:
         if inputs.arm_sequence_done:
             self._enter(State.STOWING, inputs.now)
